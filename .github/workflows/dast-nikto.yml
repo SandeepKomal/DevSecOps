@@ -1,0 +1,28 @@
+name: Nikto Web DAST
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "Authorized staging/test URL"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  nikto:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Nikto against authorized target
+        run: |
+          docker run --rm -v "$PWD:/work" sullo/nikto:latest             -h "${{ inputs.target_url }}"             -output /work/nikto-report.html             -Format htm
+
+      - name: Upload Nikto report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nikto-dast-report
+          path: nikto-report.html
+          retention-days: 30
