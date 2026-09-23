@@ -1,0 +1,54 @@
+name: GitHub Advanced Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "11 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  codeql:
+    name: GHAS Code Scanning - CodeQL
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript, python, java]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+      - uses: github/codeql-action/autobuild@v3
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/ghas/${{ matrix.language }}"
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+  ghas-checklist:
+    runs-on: ubuntu-latest
+    steps:
+      - name: GHAS controls
+        run: |
+          echo "Code scanning: CodeQL"
+          echo "Secret scanning: enable in repository Security settings"
+          echo "Push protection: enable in repository Security settings"
+          echo "Dependency graph and Dependabot alerts: enable in repository Security settings"
+          echo "Dependency review: pull-request workflow"
