@@ -1,0 +1,48 @@
+name: Docker Container Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  docker-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Detect Dockerfile
+        id: dockerfile
+        run: |
+          FILE=$(find . -maxdepth 5 -type f \( -name 'Dockerfile' -o -name 'Dockerfile.*' \) | head -n 1)
+          if [ -n "$FILE" ]; then echo "found=true" >> "$GITHUB_OUTPUT"; echo "path=$FILE" >> "$GITHUB_OUTPUT"; else echo "found=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Hadolint
+        if: steps.dockerfile.outputs.found == 'true'
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ${{ steps.dockerfile.outputs.path }}
+          failure-threshold: error
+      - name: Build test image
+        if: steps.dockerfile.outputs.found == 'true'
+        run: docker build -t devsecops-security-test:latest .
+      - name: Trivy container scan
+        if: steps.dockerfile.outputs.found == 'true'
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: devsecops-security-test:latest
+          scanners: vuln,misconfig,secret
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: sarif
+          output: docker-trivy.sarif
+          exit-code: 1
+      - name: Upload SARIF
+        if: always() && steps.dockerfile.outputs.found == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: docker-trivy.sarif
