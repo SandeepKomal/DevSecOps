@@ -1,0 +1,51 @@
+name: Terraform Security and Validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Detect Terraform
+        id: detect
+        run: |
+          if find . -name '*.tf' -not -path './.git/*' | grep -q .; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Terraform
+        if: steps.detect.outputs.found == 'true'
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Format Check
+        if: steps.detect.outputs.found == 'true'
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        if: steps.detect.outputs.found == 'true'
+        run: terraform init -backend=false -input=false
+
+      - name: Terraform Validate
+        if: steps.detect.outputs.found == 'true'
+        run: terraform validate
+
+      - name: Checkov Terraform Scan
+        if: steps.detect.outputs.found == 'true'
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          framework: terraform
+          quiet: true
