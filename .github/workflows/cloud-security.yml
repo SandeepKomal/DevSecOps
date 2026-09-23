@@ -1,0 +1,42 @@
+name: AWS Cloud Security - Prowler
+
+on:
+  workflow_dispatch:
+    inputs:
+      scan_account:
+        description: "Run a Prowler AWS security assessment"
+        required: true
+        default: "true"
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  prowler:
+    if: inputs.scan_account
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_SECURITY_ROLE_ARN }}
+
+      - name: Run Prowler AWS assessment
+        uses: toniblyx/prowler@master
+        with:
+          args: >-
+            aws
+            --compliance cis_5.0_0
+            --output-formats html csv json-ocsf
+            --output-directory prowler-output
+
+      - name: Upload Prowler reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prowler-aws-security-report
+          path: prowler-output/
+          retention-days: 30
