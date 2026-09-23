@@ -1,0 +1,50 @@
+name: Container Security
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  container-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Detect Dockerfile
+        id: dockerfile
+        run: |
+          if find . -maxdepth 4 -type f \( -name 'Dockerfile' -o -name 'Dockerfile.*' \) | grep -q .; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "No Dockerfile found; container scan will be skipped."
+          fi
+
+      - name: Build test image
+        if: steps.dockerfile.outputs.found == 'true'
+        run: docker build -t devsecops-security-test:latest .
+
+      - name: Trivy image scan
+        if: steps.dockerfile.outputs.found == 'true'
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: devsecops-security-test:latest
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-image.sarif
+          exit-code: 1
+
+      - name: Upload image SARIF
+        if: always() && steps.dockerfile.outputs.found == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-image.sarif
