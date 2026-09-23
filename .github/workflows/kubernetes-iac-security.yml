@@ -1,0 +1,38 @@
+name: Kubernetes IaC Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  kubernetes-iac:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Kubescape Kubernetes security scan
+        uses: armosec/kubescape-action@main
+        continue-on-error: true
+        with:
+          files: .
+          format: sarif
+          outputFile: kubescape-results.sarif
+          severityThreshold: high
+      - name: Upload Kubescape SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: kubescape-results.sarif
+      - name: kube-linter
+        uses: stackrox/kube-linter-action@v1
+        with:
+          directory: .
+          format: sarif
+          output-file: kube-linter-results.sarif
+          report-all-errors: true
