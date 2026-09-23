@@ -28,7 +28,7 @@ jobs:
 
       - name: Setup Terraform
         if: steps.detect.outputs.found == 'true'
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
 
       - name: Terraform Format Check
         if: steps.detect.outputs.found == 'true'
