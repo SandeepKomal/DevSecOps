@@ -264,7 +264,7 @@ jobs:
 
       # ── Run ZAP scan — plan selected dynamically by environment ───────────
       - name: OWASP ZAP DAST Scan
-        uses: zaproxy/action-af@v0.2.0
+        uses: zaproxy/action-af@v0.3.0
         continue-on-error: true
         with:
           plan: ${{ steps.scan_config.outputs.plan_file }}
