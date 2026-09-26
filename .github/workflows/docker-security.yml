@@ -23,7 +23,7 @@ jobs:
           if [ -n "$FILE" ]; then echo "found=true" >> "$GITHUB_OUTPUT"; echo "path=$FILE" >> "$GITHUB_OUTPUT"; else echo "found=false" >> "$GITHUB_OUTPUT"; fi
       - name: Hadolint
         if: steps.dockerfile.outputs.found == 'true'
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.5.0
         with:
           dockerfile: ${{ steps.dockerfile.outputs.path }}
           failure-threshold: error
