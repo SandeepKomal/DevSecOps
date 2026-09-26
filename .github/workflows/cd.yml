@@ -1,0 +1,117 @@
+name: CD - Deploy, Verify and DAST
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: "Container image, for example ghcr.io/org/app:sha"
+        required: true
+        type: string
+      namespace:
+        description: "Kubernetes namespace"
+        required: true
+        default: dev
+        type: string
+      deployment:
+        description: "Kubernetes Deployment name"
+        required: true
+        type: string
+      container:
+        description: "Container name inside the Deployment"
+        required: true
+        type: string
+      target_url:
+        description: "Authorized staging/test URL for ZAP"
+        required: true
+        type: string
+      zap_scan:
+        description: "ZAP mode"
+        required: true
+        default: baseline
+        type: choice
+        options:
+          - baseline
+          - full
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  pre-deploy:
+    name: Image Security Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: ${{ inputs.image }}
+          scanners: vuln,misconfig,secret
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: table
+          exit-code: 1
+
+  deploy:
+    name: Kubernetes Deployment
+    needs: pre-deploy
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+      - name: Configure kubeconfig
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          test -n "$KUBE_CONFIG" || { echo "KUBE_CONFIG secret is required"; exit 1; }
+          mkdir -p "$HOME/.kube"
+          printf '%s' "$KUBE_CONFIG" | base64 --decode > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+      - name: Update deployment image
+        run: |
+          kubectl -n "${{ inputs.namespace }}" set image deployment/"${{ inputs.deployment }}"             "${{ inputs.container }}"="${{ inputs.image }}"
+      - name: Wait for rollout
+        run: |
+          kubectl -n "${{ inputs.namespace }}" rollout status             deployment/"${{ inputs.deployment }}" --timeout=5m
+
+  dast:
+    name: OWASP ZAP DAST
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate target
+        run: |
+          case "${{ inputs.target_url }}" in
+            http://*|https://*) ;;
+            *) echo "Target must start with http:// or https://"; exit 1 ;;
+          esac
+      - name: Wait for application
+        run: |
+          for i in {1..18}; do
+            code=$(curl -k -L -s -o /dev/null -w '%{http_code}' --max-time 10 "${{ inputs.target_url }}" || true)
+            if echo "$code" | grep -qE '^[2-4][0-9][0-9]$'; then
+              echo "Application ready: HTTP $code"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Application did not become ready"
+          exit 1
+      - name: ZAP baseline
+        if: inputs.zap_scan == 'baseline'
+        run: |
+          mkdir -p zap-report
+          docker run --rm -v "$PWD/zap-report:/zap/wrk/:rw"             ghcr.io/zaproxy/zaproxy:stable             zap-baseline.py -t "${{ inputs.target_url }}" -r zap-baseline.html
+      - name: ZAP full scan
+        if: inputs.zap_scan == 'full'
+        run: |
+          mkdir -p zap-report
+          docker run --rm -v "$PWD/zap-report:/zap/wrk/:rw"             ghcr.io/zaproxy/zaproxy:stable             zap-full-scan.py -t "${{ inputs.target_url }}" -r zap-full.html
+      - name: Upload DAST report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: zap-dast-report
+          path: zap-report/
+          retention-days: 30
