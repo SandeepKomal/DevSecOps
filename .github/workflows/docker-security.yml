@@ -32,7 +32,7 @@ jobs:
         run: docker build -t devsecops-security-test:latest .
       - name: Trivy container scan
         if: steps.dockerfile.outputs.found == 'true'
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: devsecops-security-test:latest
           scanners: vuln,misconfig,secret
