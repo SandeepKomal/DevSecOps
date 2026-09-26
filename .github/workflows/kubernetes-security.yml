@@ -1,26 +1,36 @@
 name: Kubernetes Security
-
 on:
-  pull_request:
-    branches: [main]
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
-
 permissions:
   contents: read
-
+  security-events: write
 jobs:
-  kube-linter:
+  kubernetes:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Run kube-linter
-        uses: stackrox/kube-linter-action@v1
+      - uses: actions/checkout@v6
+      - uses: stackrox/kube-linter-action@v1
         with:
-          directory: .
+          directory: k8s
           format: sarif
-          output-file: kube-linter-results.sarif
+          output-file: kube-linter.sarif
           report-all-errors: true
+      - uses: armosec/kubescape-action@main
+        continue-on-error: true
+        with:
+          files: k8s
+          format: sarif
+          outputFile: kubescape.sarif
+          severityThreshold: high
+      - if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: kube-linter.sarif
+      - if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: kubescape.sarif
