@@ -13,24 +13,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: stackrox/kube-linter-action@v1
+      # the scanners exit with an empty SARIF when there is nothing to scan, so check for manifests first
+      - name: Look for Kubernetes manifests in k8s/
+        id: manifests
+        run: |
+          if [ -d k8s ] && grep -rlqE '^kind:' --include='*.yaml' --include='*.yml' k8s; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No Kubernetes manifests in k8s/; skipping the scans."
+          fi
+      - if: steps.manifests.outputs.present == 'true'
+        uses: stackrox/kube-linter-action@87802a2f4e01abebb3ee3c67a3002fea71f6eae5 # v1.0.7
         with:
           directory: k8s
           format: sarif
           output-file: kube-linter.sarif
-          report-all-errors: true
-      - uses: armosec/kubescape-action@main
+      - if: steps.manifests.outputs.present == 'true'
+        uses: kubescape/github-action@c9749b84d138c0cbbb702b258774954f5463b82e # v3.0.21
         continue-on-error: true
         with:
           files: k8s
           format: sarif
-          outputFile: kubescape.sarif
+          outputFile: kubescape
           severityThreshold: high
-      - if: always()
+      - if: always() && steps.manifests.outputs.present == 'true' && hashFiles('kube-linter.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: kube-linter.sarif
-      - if: always()
+          category: kube-linter
+      - if: always() && steps.manifests.outputs.present == 'true' && hashFiles('kubescape.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: kubescape.sarif
+          category: kubescape
