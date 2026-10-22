@@ -43,7 +43,7 @@ jobs:
           mkdir -p zap-report
           docker run --rm -v "$PWD/zap-report:/zap/wrk/:rw" ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py -t "$TARGET_URL" -r zap-full.html
       - if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: zap-dast-report
           path: zap-report/

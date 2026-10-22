@@ -12,7 +12,7 @@ jobs:
   kubernetes:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       # the scanners exit with an empty SARIF when there is nothing to scan, so check for manifests first
       - name: Look for Kubernetes manifests in k8s/
         id: manifests
@@ -37,12 +37,12 @@ jobs:
           outputFile: kubescape
           severityThreshold: high
       - if: always() && steps.manifests.outputs.present == 'true' && hashFiles('kube-linter.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3
         with:
           sarif_file: kube-linter.sarif
           category: kube-linter
       - if: always() && steps.manifests.outputs.present == 'true' && hashFiles('kubescape.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3
         with:
           sarif_file: kubescape.sarif
           category: kubescape
