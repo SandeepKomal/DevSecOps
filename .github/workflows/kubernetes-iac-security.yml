@@ -42,7 +42,7 @@ jobs:
           category: kubescape-iac
       - name: kube-linter
         if: steps.manifests.outputs.present == 'true'
-        uses: stackrox/kube-linter-action@v1
+        uses: stackrox/kube-linter-action@87802a2f4e01abebb3ee3c67a3002fea71f6eae5 # v1.0.7
         with:
           directory: .
           format: sarif
