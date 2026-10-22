@@ -23,13 +23,13 @@ jobs:
         # the repository is GitHub Actions workflows; it has no JavaScript, Python or Java source to analyze
         language: [actions]
     steps:
-      - uses: actions/checkout@v6
-      - uses: github/codeql-action/init@v3
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: github/codeql-action/init@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3
         with:
           languages: ${{ matrix.language }}
           build-mode: none
           queries: security-extended,security-and-quality
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3
         with:
           category: "/ghas/${{ matrix.language }}"
 
@@ -39,7 +39,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/dependency-review-action@v4
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
         with:
           fail-on-severity: high
 

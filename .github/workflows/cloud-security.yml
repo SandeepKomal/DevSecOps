@@ -20,13 +20,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS credentials with OIDC
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5
         with:
           aws-region: ${{ vars.AWS_REGION }}
           role-to-assume: ${{ vars.AWS_SECURITY_ROLE_ARN }}
 
       - name: Run Prowler AWS assessment
-        uses: toniblyx/prowler@master
+        uses: toniblyx/prowler@69b80f6a3f7fac9324d5f6826391faf775fc3700 # master
         with:
           args: >-
             aws
@@ -36,7 +36,7 @@ jobs:
 
       - name: Upload Prowler reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: prowler-aws-security-report
           path: prowler-output/

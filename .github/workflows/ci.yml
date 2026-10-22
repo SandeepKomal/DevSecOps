@@ -17,9 +17,9 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
       - name: Install dependencies when requirements.txt exists
@@ -41,7 +41,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0  # gitleaks scans the pull request's commit range, which a one-commit checkout doesn't have
       - name: Trivy filesystem scan
@@ -55,7 +55,7 @@ jobs:
           format: table
           exit-code: 1
       - name: Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -69,7 +69,7 @@ jobs:
     outputs:
       image: ${{ steps.image.outputs.image }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       # hashFiles() isn't available in a job-level if, so the Dockerfile check runs after checkout
       - name: Look for a Dockerfile
         id: dockerfile
@@ -87,7 +87,7 @@ jobs:
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
       - name: Login to GHCR
         if: steps.dockerfile.outputs.present == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -108,7 +108,7 @@ jobs:
           exit-code: 1
       - name: Upload Trivy SARIF
         if: always() && steps.dockerfile.outputs.present == 'true'
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3
         with:
           sarif_file: trivy-container.sarif
       - name: Push image
