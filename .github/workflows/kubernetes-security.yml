@@ -19,12 +19,12 @@ jobs:
           format: sarif
           output-file: kube-linter.sarif
           report-all-errors: true
-      - uses: armosec/kubescape-action@main
+      - uses: kubescape/github-action@c9749b84d138c0cbbb702b258774954f5463b82e # v3.0.21
         continue-on-error: true
         with:
           files: k8s
           format: sarif
-          outputFile: kubescape.sarif
+          outputFile: kubescape
           severityThreshold: high
       - if: always()
         uses: github/codeql-action/upload-sarif@v3

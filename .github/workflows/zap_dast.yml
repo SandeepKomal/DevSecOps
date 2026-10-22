@@ -33,12 +33,10 @@ jobs:
   # ── JOB 1: Your existing deploy job — unchanged ───────────────────────────
   DEPLOY:
     runs-on: ubuntu-latest
-    if: >
-      ${{
-        github.event_name == 'workflow_dispatch' ||
-        (github.event_name == 'workflow_run' &&
-         github.event.workflow_run.conclusion == 'success')
-      }}
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success')
 
     # ── Output APP_URL so DAST job can use it ─────────────────────────────
     outputs:
