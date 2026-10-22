@@ -42,8 +42,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # gitleaks scans the pull request's commit range, which a one-commit checkout doesn't have
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -60,7 +62,6 @@ jobs:
   build:
     name: Build Container
     needs: security-gates
-    if: ${{ hashFiles('Dockerfile', '**/Dockerfile') != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -69,21 +70,34 @@ jobs:
       image: ${{ steps.image.outputs.image }}
     steps:
       - uses: actions/checkout@v6
+      # hashFiles() isn't available in a job-level if, so the Dockerfile check runs after checkout
+      - name: Look for a Dockerfile
+        id: dockerfile
+        run: |
+          if [ -n "$(find . -name Dockerfile -not -path './.git/*' -print -quit)" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No Dockerfile in this repository; skipping the container build."
+          fi
       - name: Set image
         id: image
+        if: steps.dockerfile.outputs.present == 'true'
         run: |
           IMAGE="ghcr.io/${{ github.repository }}:${{ github.sha }}"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
       - name: Login to GHCR
+        if: steps.dockerfile.outputs.present == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build image
+        if: steps.dockerfile.outputs.present == 'true'
         run: docker build -t "${{ steps.image.outputs.image }}" .
       - name: Trivy container scan
-        uses: aquasecurity/trivy-action@0.33.1
+        if: steps.dockerfile.outputs.present == 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ steps.image.outputs.image }}
           scanners: vuln,misconfig,secret
@@ -93,11 +107,12 @@ jobs:
           output: trivy-container.sarif
           exit-code: 1
       - name: Upload Trivy SARIF
-        if: always()
+        if: always() && steps.dockerfile.outputs.present == 'true'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-container.sarif
       - name: Push image
+        if: steps.dockerfile.outputs.present == 'true'
         run: docker push "${{ steps.image.outputs.image }}"
 
   ci-summary:
