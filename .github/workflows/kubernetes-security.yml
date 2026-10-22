@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       # the scanners exit with an empty SARIF when there is nothing to scan, so check for manifests first
       - name: Look for Kubernetes manifests in k8s/
         id: manifests
