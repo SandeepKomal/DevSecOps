@@ -17,6 +17,11 @@ jobs:
         with:
           directory: .
           framework: terraform,kubernetes,dockerfile,github_actions
+          # CKV_GHA_7 (no workflow_dispatch inputs) is a provenance rule for build workflows. This repo's
+          # dispatch workflows are manual deploys and scans whose inputs choose the target; they pass
+          # inputs to steps only through env and validate them. GitHub ignores Checkov's in-file skip
+          # comments, so the rule is skipped here.
+          skip_check: CKV_GHA_7
           soft_fail: true
           output_format: sarif
           output_file_path: checkov.sarif
