@@ -25,19 +25,12 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
           role-to-assume: ${{ vars.AWS_SECURITY_ROLE_ARN }}
 
+      # the action takes provider/output-formats/flags (it has no "args" input), runs Prowler in a container
+      # that receives only the variables named in extra-env, and uploads output/ as the prowler-aws artifact
       - name: Run Prowler AWS assessment
-        uses: toniblyx/prowler@69b80f6a3f7fac9324d5f6826391faf775fc3700 # master
+        uses: prowler-cloud/prowler@bffc8844c1c9a3666e37a2ada4ee05f62e1446b0 # 5.45.0
         with:
-          args: >-
-            aws
-            --compliance cis_5.0_0
-            --output-formats html csv json-ocsf
-            --output-directory prowler-output
-
-      - name: Upload Prowler reports
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: prowler-aws-security-report
-          path: prowler-output/
-          retention-days: 30
+          provider: aws
+          output-formats: html csv json-ocsf
+          flags: --compliance cis_5.0_aws
+          extra-env: AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_REGION AWS_DEFAULT_REGION
