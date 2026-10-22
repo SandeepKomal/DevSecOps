@@ -2,6 +2,7 @@ name: Nikto Web DAST
 
 on:
   workflow_dispatch:
+  # checkov:skip=CKV_GHA_7: manual deploy/scan workflow, not a build; its inputs pick the target and are passed to steps only through env and validated
     inputs:
       target_url:
         description: "Authorized staging/test URL"
@@ -16,8 +17,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run Nikto against authorized target
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
         run: |
-          docker run --rm -v "$PWD:/work" sullo/nikto:latest             -h "${{ inputs.target_url }}"             -output /work/nikto-report.html             -Format htm
+          if ! printf '%s' "$TARGET_URL" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~%/?#=&+:-]*)?$'; then
+            echo "Target must be an http:// or https:// URL"; exit 1
+          fi
+          docker run --rm -v "$PWD:/work" sullo/nikto:latest -h "$TARGET_URL" -output /work/nikto-report.html -Format htm
 
       - name: Upload Nikto report
         if: always()

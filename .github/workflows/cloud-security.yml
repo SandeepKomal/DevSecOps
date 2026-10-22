@@ -2,6 +2,7 @@ name: AWS Cloud Security - Prowler
 
 on:
   workflow_dispatch:
+  # checkov:skip=CKV_GHA_7: manual deploy/scan workflow, not a build; its one boolean input only gates the job
     inputs:
       scan_account:
         description: "Run a Prowler AWS security assessment"
