@@ -2,6 +2,7 @@ name: CD - Deploy, Verify and DAST
 
 on:
   workflow_dispatch:
+  # checkov:skip=CKV_GHA_7: manual deploy/scan workflow, not a build; its inputs pick the target and are passed to steps only through env and validated
     inputs:
       image:
         description: "Container image, for example ghcr.io/org/app:sha"
@@ -68,12 +69,31 @@ jobs:
           mkdir -p "$HOME/.kube"
           printf '%s' "$KUBE_CONFIG" | base64 --decode > "$HOME/.kube/config"
           chmod 600 "$HOME/.kube/config"
+      - name: Validate inputs
+        env:
+          NAMESPACE: ${{ inputs.namespace }}
+          DEPLOYMENT: ${{ inputs.deployment }}
+          CONTAINER: ${{ inputs.container }}
+          IMAGE: ${{ inputs.image }}
+        run: |
+          for v in "$NAMESPACE" "$DEPLOYMENT" "$CONTAINER"; do
+            printf '%s' "$v" | grep -Eq '^[a-z0-9]([-a-z0-9.]{0,251}[a-z0-9])?$' || { echo "Not a valid Kubernetes name: $v"; exit 1; }
+          done
+          printf '%s' "$IMAGE" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,254}$' || { echo "Not a valid image reference: $IMAGE"; exit 1; }
       - name: Update deployment image
+        env:
+          NAMESPACE: ${{ inputs.namespace }}
+          DEPLOYMENT: ${{ inputs.deployment }}
+          CONTAINER: ${{ inputs.container }}
+          IMAGE: ${{ inputs.image }}
         run: |
-          kubectl -n "${{ inputs.namespace }}" set image deployment/"${{ inputs.deployment }}"             "${{ inputs.container }}"="${{ inputs.image }}"
+          kubectl -n "$NAMESPACE" set image "deployment/$DEPLOYMENT" "$CONTAINER=$IMAGE"
       - name: Wait for rollout
+        env:
+          NAMESPACE: ${{ inputs.namespace }}
+          DEPLOYMENT: ${{ inputs.deployment }}
         run: |
-          kubectl -n "${{ inputs.namespace }}" rollout status             deployment/"${{ inputs.deployment }}" --timeout=5m
+          kubectl -n "$NAMESPACE" rollout status "deployment/$DEPLOYMENT" --timeout=5m
 
   dast:
     name: OWASP ZAP DAST
@@ -81,15 +101,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Validate target
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
         run: |
-          case "${{ inputs.target_url }}" in
-            http://*|https://*) ;;
-            *) echo "Target must start with http:// or https://"; exit 1 ;;
-          esac
+          if ! printf '%s' "$TARGET_URL" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~%/?#=&+:-]*)?$'; then
+            echo "Target must be an http:// or https:// URL"; exit 1
+          fi
       - name: Wait for application
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
         run: |
           for i in {1..18}; do
-            code=$(curl -k -L -s -o /dev/null -w '%{http_code}' --max-time 10 "${{ inputs.target_url }}" || true)
+            code=$(curl -k -L -s -o /dev/null -w '%{http_code}' --max-time 10 "$TARGET_URL" || true)
             if echo "$code" | grep -qE '^[2-4][0-9][0-9]$'; then
               echo "Application ready: HTTP $code"
               exit 0
@@ -100,14 +123,18 @@ jobs:
           exit 1
       - name: ZAP baseline
         if: inputs.zap_scan == 'baseline'
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
         run: |
           mkdir -p zap-report
-          docker run --rm -v "$PWD/zap-report:/zap/wrk/:rw"             ghcr.io/zaproxy/zaproxy:stable             zap-baseline.py -t "${{ inputs.target_url }}" -r zap-baseline.html
+          docker run --rm -v "$PWD/zap-report:/zap/wrk/:rw" ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t "$TARGET_URL" -r zap-baseline.html
       - name: ZAP full scan
         if: inputs.zap_scan == 'full'
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
         run: |
           mkdir -p zap-report
-          docker run --rm -v "$PWD/zap-report:/zap/wrk/:rw"             ghcr.io/zaproxy/zaproxy:stable             zap-full-scan.py -t "${{ inputs.target_url }}" -r zap-full.html
+          docker run --rm -v "$PWD/zap-report:/zap/wrk/:rw" ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py -t "$TARGET_URL" -r zap-full.html
       - name: Upload DAST report
         if: always()
         uses: actions/upload-artifact@v7
