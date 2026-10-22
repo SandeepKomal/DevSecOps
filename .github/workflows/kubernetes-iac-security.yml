@@ -17,12 +17,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Kubescape Kubernetes security scan
-        uses: armosec/kubescape-action@main
+        uses: kubescape/github-action@c9749b84d138c0cbbb702b258774954f5463b82e # v3.0.21
         continue-on-error: true
         with:
           files: .
           format: sarif
-          outputFile: kubescape-results.sarif
+          outputFile: kubescape-results
           severityThreshold: high
       - name: Upload Kubescape SARIF
         if: always()
