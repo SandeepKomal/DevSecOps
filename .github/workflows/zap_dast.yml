@@ -50,6 +50,7 @@ jobs:
         with:
           repository: naveen-uppala/Infra-App-Deployment
           token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
       # AWS Auth
       - name: Configure AWS Credentials
@@ -211,6 +212,8 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       # ── Decide scan type based on environment ─────────────────────────────
       - name: Set DAST scan type
