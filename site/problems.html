@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>DevSecOps problems and fixes · DevSecOps Quest</title>
+  <meta name="description" content="51 DevSecOps errors and scanner findings with their exact text, cause, how to confirm, the fix and how to prevent it: gitleaks, Trivy, Semgrep, Checkov, cosign, GitHub Actions, Kubernetes and AWS.">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="DevSecOps problems and fixes">
+  <meta property="og:description" content="Scanner findings and pipeline errors, from symptom to fix.">
+  <meta property="og:url" content="https://sandeepkomal.github.io/DevSecOps/problems.html">
+  <link rel="canonical" href="https://sandeepkomal.github.io/DevSecOps/problems.html">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+</head>
+<body>
+<main class="wrap problems">
+  <p><a href="index.html">DevSecOps Quest</a> · <a href="index.html#doctor">Searchable version</a></p>
+  <h1>DevSecOps problems and fixes</h1>
+  <p class="lede">51 errors and scanner findings: the exact text, what it means, how to confirm it, how to fix it and how to stop it coming back. Practice examples use invented IDs such as PRACTICE-2026-0001.</p>
+  <nav aria-label="Groups"><ul>
+    <li><a href="#secrets">Secrets</a> (5)</li>
+    <li><a href="#dependencies">Dependencies</a> (7)</li>
+    <li><a href="#code">Code</a> (3)</li>
+    <li><a href="#containers">Containers</a> (5)</li>
+    <li><a href="#infrastructure-as-code">Infrastructure as code</a> (5)</li>
+    <li><a href="#kubernetes">Kubernetes</a> (4)</li>
+    <li><a href="#ci-cd-and-supply-chain">CI/CD and supply chain</a> (16)</li>
+    <li><a href="#git-history">Git history</a> (2)</li>
+    <li><a href="#runtime-and-response">Runtime and response</a> (4)</li>
+  </ul></nav>
+  <h2 id="secrets">Secrets</h2>
+  <section id="leaked-aws-key">
+    <h3>gitleaks: AWS access key found in history</h3>
+    <p class="tag">gitleaks</p>
+    <h4>The error</h4>
+    <pre><code>RuleID:      aws-access-token
+...
+WRN leaks found: 1</code></pre>
+    <h4>What it means</h4>
+    <p>An access key (AKIA...) was committed. Once pushed, anyone who cloned, forked or viewed the repository may have it.</p>
+    <h4>Confirm it</h4>
+    <pre><code>gitleaks git -v
+aws iam list-access-keys --user-name &lt;user&gt;
+aws cloudtrail lookup-events --lookup-attributes AttributeKey=AccessKeyId,AttributeValue=&lt;key&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Rotate first: create a new key if one is still needed, deactivate and later delete the leaked one.</li>
+      <li>Check CloudTrail for use of the leaked key.</li>
+      <li>Remove it from code; load credentials from a role or secret store.</li>
+      <li>Purge history: git filter-repo --replace-text replace.txt --force, re-add origin, push --force, and ask collaborators to re-clone.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Pre-commit gitleaks, push protection, and roles or OIDC instead of keys.</p>
+    <p>Practise it: <a href="index.html#play/aws-key">AWS key committed</a>, <a href="index.html#play/leaked-token">Incident: leaked key used by an attacker</a> · <a href="index.html#fix/leaked-aws-key">Open in the site</a></p>
+  </section>
+  <section id="env-committed">
+    <h3>.env file committed</h3>
+    <p class="tag">git</p>
+    <h4>The error</h4>
+    <pre><code>	new file:   .env</code></pre>
+    <h4>What it means</h4>
+    <p>.env was not ignored, or was added before it was ignored. .gitignore does not untrack files git already tracks.</p>
+    <h4>Confirm it</h4>
+    <pre><code>git ls-files .env
+git log --stat -- .env</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Rotate every value in it.</li>
+      <li>git rm --cached .env and add .env to .gitignore.</li>
+      <li>git filter-repo --path .env --invert-paths --force; push --force.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>A template file (.env.example) with no values; gitleaks in pre-commit.</p>
+    <p>Practise it: <a href="index.html#play/dotenv">.env committed</a> · <a href="index.html#fix/env-committed">Open in the site</a></p>
+  </section>
+  <section id="gh013">
+    <h3>GH013: Repository rule violations found (push protection)</h3>
+    <p class="tag">git push</p>
+    <h4>The error</h4>
+    <pre><code>remote: error: GH013: Repository rule violations found for refs/heads/main.
+...
+ ! [remote rejected] main -&gt; main (push declined due to repository rule violations)</code></pre>
+    <h4>What it means</h4>
+    <p>GitHub's push protection found a secret in one of the commits you are pushing, not only the last one.</p>
+    <h4>Confirm it</h4>
+    <pre><code>git log -p origin/main..HEAD | grep -n &lt;part of the secret&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>If it is in the last commit: remove it, git commit -a --amend, push.</li>
+      <li>If older: git rebase -i to edit that commit, or git reset --soft origin/main and recommit.</li>
+      <li>Do not use the bypass URL for a real secret.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Keep secrets in the environment or a secret store from the first line of a script.</p>
+    <p>Practise it: <a href="index.html#play/push-protection">Push blocked by push protection</a> · <a href="index.html#fix/gh013">Open in the site</a></p>
+  </section>
+  <section id="secret-in-layer">
+    <h3>trivy: secret found in an image layer</h3>
+    <p class="tag">trivy image</p>
+    <h4>The error</h4>
+    <pre><code>CRITICAL: ... (secrets)
+ /etc/pip.conf:2 (added by 'COPY pip.conf /etc/pip.conf')</code></pre>
+    <h4>What it means</h4>
+    <p>A file with a credential was copied into the image. Deleting it in a later RUN does not remove it from the earlier layer.</p>
+    <h4>Confirm it</h4>
+    <pre><code>docker history --no-trunc &lt;image&gt;
+trivy image &lt;image&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Use RUN --mount=type=secret,id=&lt;id&gt; for the step that needs it, and docker build --secret id=&lt;id&gt;,env=VAR.</li>
+      <li>Rotate the credential: every pulled copy of the image has it.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>.dockerignore for credential files; image secret scanning in CI.</p>
+    <p>Practise it: <a href="index.html#play/docker-layer">Secret in a Docker layer</a>, <a href="index.html#play/build-args">Secret passed as a build argument</a> · <a href="index.html#fix/secret-in-layer">Open in the site</a></p>
+  </section>
+  <section id="tfstate-secrets">
+    <h3>Passwords in terraform.tfstate</h3>
+    <p class="tag">gitleaks, Terraform</p>
+    <h4>The error</h4>
+    <pre><code>RuleID:      generic-api-key
+File:        terraform/terraform.tfstate</code></pre>
+    <h4>What it means</h4>
+    <p>Terraform state stores every attribute in plain text, including passwords set from variables. A local state file was committed.</p>
+    <h4>Confirm it</h4>
+    <pre><code>git ls-files '*.tfstate*'
+grep -n password terraform/terraform.tfstate</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Rotate the secrets it holds.</li>
+      <li>Move state to an encrypted, access-controlled backend (backend &quot;s3&quot; with encrypt = true and locking).</li>
+      <li>git rm --cached the state file, add *.tfstate* to .gitignore, purge it from history.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>A remote backend from day one; managed passwords (manage_master_user_password) so state never holds them.</p>
+    <p>Practise it: <a href="index.html#play/tf-state">Secrets in Terraform state</a> · <a href="index.html#fix/tfstate-secrets">Open in the site</a></p>
+  </section>
+  <h2 id="dependencies">Dependencies</h2>
+  <section id="critical-cve-fix">
+    <h3>Critical vulnerability with a fixed version</h3>
+    <p class="tag">osv-scanner, trivy</p>
+    <h4>The error</h4>
+    <pre><code>│ PRACTICE-2026-0001 │ 9.8 │ PyPI │ imgresize │ 2.1.0 │ 2.1.4 │ requirements.txt │</code></pre>
+    <h4>What it means</h4>
+    <p>A dependency version has a known advisory, and a release with the fix exists.</p>
+    <h4>Confirm it</h4>
+    <pre><code>osv-scanner scan source -r .
+pip index versions &lt;package&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Change the constraint at its source (requirements.in, package.json) and regenerate the lock: pip-compile --upgrade-package &lt;package&gt;.</li>
+      <li>Run the tests and the pipeline.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Dependabot or Renovate pull requests, merged often.</p>
+    <p>Practise it: <a href="index.html#play/vuln-dep">Vulnerable dependency with a fix</a>, <a href="index.html#play/cve-in-prod">New critical CVE in production</a> · <a href="index.html#fix/critical-cve-fix">Open in the site</a></p>
+  </section>
+  <section id="transitive">
+    <h3>Vulnerable transitive dependency</h3>
+    <p class="tag">osv-scanner</p>
+    <h4>The error</h4>
+    <pre><code>Could not find a version that matches xmlsafe&lt;0.9.3,==0.9.5 (from reportgen==1.8.0, --upgrade-package)</code></pre>
+    <h4>What it means</h4>
+    <p>The vulnerable package came with another one, whose version range forbids the fix.</p>
+    <h4>Confirm it</h4>
+    <pre><code>grep -n -A3 &lt;package&gt; requirements.txt   # the '# via' line names the parent
+pip index versions &lt;parent&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Upgrade the parent to a version that allows the fixed child.</li>
+      <li>If no parent release exists, add a constraint and test, or replace the parent.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Keep parents current; small, frequent upgrades.</p>
+    <p>Practise it: <a href="index.html#play/transitive">Transitive vulnerability</a> · <a href="index.html#fix/transitive">Open in the site</a></p>
+  </section>
+  <section id="cve-no-fix">
+    <h3>Vulnerability with no fix available</h3>
+    <p class="tag">osv-scanner, trivy</p>
+    <h4>The error</h4>
+    <pre><code>│ PRACTICE-2026-0012 │ 7.5 │ PyPI │ pdfstamp │ 4.2.0 │ -- │ requirements.txt │</code></pre>
+    <h4>What it means</h4>
+    <p>No patched version exists yet.</p>
+    <h4>Confirm it</h4>
+    <pre><code>osv-scanner scan source -r .
+Read the advisory: which input reaches the vulnerable code?</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>If your use is not reachable or you can mitigate, record a scoped exception: osv-scanner.toml [[IgnoredVulns]] with id, ignoreUntil and reason (or .trivyignore.yaml with statement and expired_at).</li>
+      <li>Track it; when the exception expires the gate fails again.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Prefer maintained libraries; have an exception process with owners and expiry.</p>
+    <p>Practise it: <a href="index.html#play/no-fix">No fix available: accept the risk</a> · <a href="index.html#fix/cve-no-fix">Open in the site</a></p>
+  </section>
+  <section id="license">
+    <h3>Forbidden licence in a dependency</h3>
+    <p class="tag">trivy fs --scanners license</p>
+    <h4>The error</h4>
+    <pre><code>│ chartforge │ AGPL-3.0-only │ forbidden │ HIGH │</code></pre>
+    <h4>What it means</h4>
+    <p>A package's licence is on your organisation's deny list.</p>
+    <h4>Confirm it</h4>
+    <pre><code>trivy fs --scanners license .
+syft &lt;image&gt; -o cyclonedx-json | grep -i license</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Replace the package, or get a written legal decision before changing the policy.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Licence checks on pull requests (Dependency Review can deny licences).</p>
+    <p>Practise it: <a href="index.html#play/license">Licence violation</a> · <a href="index.html#fix/license">Open in the site</a></p>
+  </section>
+  <section id="malicious-package">
+    <h3>Malicious or typosquatted package</h3>
+    <p class="tag">osv-scanner</p>
+    <h4>The error</h4>
+    <pre><code>PRACTICE-2026-0031: Malicious code in reqeusts (PyPI): a typosquat of requests ...</code></pre>
+    <h4>What it means</h4>
+    <p>A package name one letter off a popular one, or a public package claiming an internal name (dependency confusion).</p>
+    <h4>Confirm it</h4>
+    <pre><code>osv-scanner scan source -r .
+pip install -r requirements.txt   # Looking in indexes: ...</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Remove it and install the intended package.</li>
+      <li>Rotate every secret the installing job or laptop could read.</li>
+      <li>For confusion: one index that serves internal names only internally; no --extra-index-url.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Lock files with hashes; review new dependencies; scoped or reserved internal names.</p>
+    <p>Practise it: <a href="index.html#play/typosquat">Typosquatted package</a>, <a href="index.html#play/dep-confusion">Dependency confusion</a> · <a href="index.html#fix/malicious-package">Open in the site</a></p>
+  </section>
+  <section id="unpinned-dependency">
+    <h3>Dependencies not pinned</h3>
+    <p class="tag">osv-scanner, pip</p>
+    <h4>The error</h4>
+    <pre><code>Warning: 10 requirements are not pinned to a version</code></pre>
+    <h4>What it means</h4>
+    <p>Ranges like flask&gt;=3.0 resolve to different versions over time; scans and SBOMs no longer describe the build.</p>
+    <h4>Confirm it</h4>
+    <pre><code>grep -v '==' requirements.txt</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Generate a lock: pip-compile --generate-hashes requirements.in (npm ci with package-lock.json, and so on).</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>CI installs only from the lock file.</p>
+    <p>Practise it: <a href="index.html#play/unpinned-deps">Unpinned dependencies</a> · <a href="index.html#fix/unpinned-dependency">Open in the site</a></p>
+  </section>
+  <section id="dependabot-backlog">
+    <h3>Dependabot pull requests pile up, or merge blindly</h3>
+    <p class="tag">Dependabot, gh</p>
+    <h4>The error</h4>
+    <pre><code>#101  Bump imgresize from 2.1.0 to 2.1.4
+#104  Bump plotkit from 1.6.0 to 2.0.0</code></pre>
+    <h4>What it means</h4>
+    <p>Nobody triages bot pull requests, or an auto-merge workflow merges everything, majors included, before checks finish.</p>
+    <h4>Confirm it</h4>
+    <pre><code>gh pr list --author app/dependabot
+cat .github/workflows/dependabot-automerge.yml</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Merge security fixes first.</li>
+      <li>Auto-merge only dependabot[bot], only patch and minor (dependabot/fetch-metadata update-type), with gh pr merge --auto so required checks gate it.</li>
+      <li>Leave majors for a person.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Group updates, schedule them, and protect main with required checks.</p>
+    <p>Practise it: <a href="index.html#play/dependabot">Dependabot triage and safe auto-merge</a> · <a href="index.html#fix/dependabot-backlog">Open in the site</a></p>
+  </section>
+  <h2 id="code">Code</h2>
+  <section id="sast-sql">
+    <h3>Semgrep: formatted SQL query (SQL injection)</h3>
+    <p class="tag">semgrep</p>
+    <h4>The error</h4>
+    <pre><code>❯❯❱ python.lang.security.audit.formatted-sql-query.formatted-sql-query
+   Detected possible formatted SQL query. Use parameterized queries instead.</code></pre>
+    <h4>What it means</h4>
+    <p>Input is placed into SQL text with an f-string, % or +.</p>
+    <h4>Confirm it</h4>
+    <pre><code>semgrep scan --config p/python app/</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Pass values as parameters: cur.execute(&quot;... WHERE id = %s&quot;, (value,)).</li>
+      <li>For identifiers, use an allowlist and psycopg.sql.Identifier.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>An ORM or query builder; SAST on every pull request.</p>
+    <p>Practise it: <a href="index.html#play/sqli">SQL injection flagged by SAST</a>, <a href="index.html#play/silent-gate">The scanner that could not fail</a> · <a href="index.html#fix/sast-sql">Open in the site</a></p>
+  </section>
+  <section id="sast-xss">
+    <h3>Semgrep: directly returned format string (XSS)</h3>
+    <p class="tag">semgrep</p>
+    <h4>The error</h4>
+    <pre><code>❯❯❱ python.flask.security.audit.directly-returned-format-string.directly-returned-format-string</code></pre>
+    <h4>What it means</h4>
+    <p>A route returns HTML built from input without escaping.</p>
+    <h4>Confirm it</h4>
+    <pre><code>semgrep scan --config p/python app/
+curl '&lt;url&gt;/search?q=&lt;script&gt;alert(1)&lt;/script&gt;'</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Escape every value (markupsafe.escape) or render with a template that escapes by default.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Templates, not f-strings, for HTML; a Content-Security-Policy as a second layer.</p>
+    <p>Practise it: <a href="index.html#play/xss">Reflected XSS</a> · <a href="index.html#fix/sast-xss">Open in the site</a></p>
+  </section>
+  <section id="false-positive">
+    <h3>A finding is a false positive</h3>
+    <p class="tag">semgrep, checkov, trivy</p>
+    <h4>The error</h4>
+    <pre><code>(a finding you have proven cannot be exploited)</code></pre>
+    <h4>What it means</h4>
+    <p>Rules match patterns, not intent: an identifier from a fixed allowlist, a test fixture, an example key.</p>
+    <h4>Confirm it</h4>
+    <pre><code>Trace the input to the flagged line and write down why it is safe.
+Ask a second reviewer.</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Suppress one rule on one line, with the reason above it: # nosemgrep: &lt;rule-id&gt;, #checkov:skip=&lt;ID&gt;:&lt;reason&gt;, a .trivyignore.yaml entry with statement.</li>
+      <li>Never a bare # nosemgrep, a global rule exclusion, or continue-on-error.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Review suppressions like code (CODEOWNERS on the files and paths).</p>
+    <p>Practise it: <a href="index.html#play/false-positive">False positive, suppressed responsibly</a> · <a href="index.html#fix/false-positive">Open in the site</a></p>
+  </section>
+  <h2 id="containers">Containers</h2>
+  <section id="run-as-root">
+    <h3>container has runAsNonRoot and image will run as root</h3>
+    <p class="tag">kubelet</p>
+    <h4>The error</h4>
+    <pre><code>Error: container has runAsNonRoot and image will run as root (pod: &quot;api-...&quot;, container: api)</code></pre>
+    <h4>What it means</h4>
+    <p>The image has no USER (so root) while the Pod requires a non-root user.</p>
+    <h4>Confirm it</h4>
+    <pre><code>kubectl describe pod &lt;pod&gt;
+docker inspect --format '{{.Config.User}}' &lt;image&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Add USER 10001 (numeric) to the Dockerfile and make files the app writes owned by that user.</li>
+      <li>Keep runAsNonRoot: true.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Hadolint and Trivy config (DS002) in CI.</p>
+    <p>Practise it: <a href="index.html#play/root">Image runs as root</a> · <a href="index.html#fix/run-as-root">Open in the site</a></p>
+  </section>
+  <section id="non-numeric-user">
+    <h3>image has non-numeric user, cannot verify user is non-root</h3>
+    <p class="tag">kubelet</p>
+    <h4>The error</h4>
+    <pre><code>Error: container has runAsNonRoot and image has non-numeric user (app), cannot verify user is non-root</code></pre>
+    <h4>What it means</h4>
+    <p>USER app is a name; the kubelet cannot know its UID.</p>
+    <h4>Confirm it</h4>
+    <pre><code>docker inspect --format '{{.Config.User}}' &lt;image&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>USER 10001 in the Dockerfile, or runAsUser: 10001 in the securityContext.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Always use numeric users in images.</p>
+    <p>Practise it: <a href="index.html#play/root">Image runs as root</a> · <a href="index.html#fix/non-numeric-user">Open in the site</a></p>
+  </section>
+  <section id="base-cves">
+    <h3>Image scan: dozens of HIGH and CRITICAL in OS packages</h3>
+    <p class="tag">trivy image, grype</p>
+    <h4>The error</h4>
+    <pre><code>Total: 213 (UNKNOWN: 2, LOW: 118, MEDIUM: 61, HIGH: 24, CRITICAL: 5)</code></pre>
+    <h4>What it means</h4>
+    <p>A full OS base image ships hundreds of packages the app never uses.</p>
+    <h4>Confirm it</h4>
+    <pre><code>trivy image --severity HIGH,CRITICAL &lt;image&gt;
+docker images   # size</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Multi-stage build; ship from slim, alpine or distroless.</li>
+      <li>Rebuild regularly to pick up base fixes.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Pin base images by digest and let a bot propose updates.</p>
+    <p>Practise it: <a href="index.html#play/base-image">Base image full of CVEs</a> · <a href="index.html#fix/base-cves">Open in the site</a></p>
+  </section>
+  <section id="wheel-build">
+    <h3>Failed to build installable wheels after a base image update</h3>
+    <p class="tag">pip, docker build</p>
+    <h4>The error</h4>
+    <pre><code>ERROR: Failed to build installable wheels for some pyproject.toml based projects (imgresize)</code></pre>
+    <h4>What it means</h4>
+    <p>A floating base tag (python:latest) moved to a new Python version that a dependency does not support yet.</p>
+    <h4>Confirm it</h4>
+    <pre><code>docker pull python:latest
+grep FROM Dockerfile</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Pin the version you tested, ideally with its digest: FROM python:3.12-slim@sha256:...</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>No :latest in Dockerfiles; DS001 / CKV_DOCKER_7 in CI.</p>
+    <p>Practise it: <a href="index.html#play/latest-tag">Base image on :latest</a> · <a href="index.html#fix/wheel-build">Open in the site</a></p>
+  </section>
+  <section id="vex-not-affected">
+    <h3>A CVE that does not affect you blocks the release</h3>
+    <p class="tag">trivy, OpenVEX</p>
+    <h4>The error</h4>
+    <pre><code>│ libpractice-glyphs2 │ PRACTICE-2026-0140 │ HIGH │ affected │ 2.13.1-1 │  │</code></pre>
+    <h4>What it means</h4>
+    <p>A scanner matches package versions, not reachability. The vulnerable code may never run in your product.</p>
+    <h4>Confirm it</h4>
+    <pre><code>trivy image --severity HIGH,CRITICAL &lt;image&gt;
+Show that nothing in the product calls the vulnerable code.</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Write an OpenVEX statement: status not_affected, a justification such as vulnerable_code_not_in_execute_path, and an impact_statement.</li>
+      <li>Pass it to the scanner: trivy image --vex vex.openvex.json &lt;image&gt;.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Review VEX statements like code; revisit them when the product changes.</p>
+    <p>Practise it: <a href="index.html#play/vex">VEX for a non-exploitable CVE</a> · <a href="index.html#fix/vex-not-affected">Open in the site</a></p>
+  </section>
+  <h2 id="infrastructure-as-code">Infrastructure as code</h2>
+  <section id="public-bucket">
+    <h3>CKV_AWS_20: S3 bucket allows public read</h3>
+    <p class="tag">checkov</p>
+    <h4>The error</h4>
+    <pre><code>Check: CKV_AWS_20: &quot;S3 Bucket has an ACL defined which allows public READ access.&quot;
+	FAILED for resource: aws_s3_bucket_acl.invoices</code></pre>
+    <h4>What it means</h4>
+    <p>An ACL of public-read, often with the public access block turned off.</p>
+    <h4>Confirm it</h4>
+    <pre><code>checkov -d terraform
+aws s3api get-public-access-block --bucket &lt;bucket&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Remove the ACL; set all four public access block settings to true.</li>
+      <li>Share objects with presigned URLs.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Account-level S3 Block Public Access.</p>
+    <p>Practise it: <a href="index.html#play/public-bucket">Public S3 bucket</a> · <a href="index.html#fix/public-bucket">Open in the site</a></p>
+  </section>
+  <section id="open-ssh">
+    <h3>CKV_AWS_24: SSH open to 0.0.0.0/0</h3>
+    <p class="tag">checkov</p>
+    <h4>The error</h4>
+    <pre><code>Check: CKV_AWS_24: &quot;Ensure no security groups allow ingress from 0.0.0.0:0 to port 22&quot;</code></pre>
+    <h4>What it means</h4>
+    <p>An ingress rule allows port 22 from the whole internet.</p>
+    <h4>Confirm it</h4>
+    <pre><code>checkov -d terraform
+aws ec2 describe-security-groups --filters Name=ip-permission.cidr,Values=0.0.0.0/0</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Remove the rule and use SSM Session Manager, or allow only the VPN range.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>No inbound admin ports at all; moving SSH to another port is not a fix.</p>
+    <p>Practise it: <a href="index.html#play/ssh-open">SSH open to 0.0.0.0/0</a> · <a href="index.html#fix/open-ssh">Open in the site</a></p>
+  </section>
+  <section id="unencrypted-storage">
+    <h3>CKV_AWS_3 / CKV_AWS_16: unencrypted EBS or RDS</h3>
+    <p class="tag">checkov</p>
+    <h4>The error</h4>
+    <pre><code>Check: CKV_AWS_3: &quot;Ensure all data stored in the EBS is securely encrypted&quot;</code></pre>
+    <h4>What it means</h4>
+    <p>encrypted or storage_encrypted is false or missing.</p>
+    <h4>Confirm it</h4>
+    <pre><code>checkov -d terraform</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Set encrypted = true / storage_encrypted = true. On an existing RDS instance: snapshot, copy encrypted, restore.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>EBS encryption by default in each region.</p>
+    <p>Practise it: <a href="index.html#play/unencrypted">Unencrypted EBS and RDS</a> · <a href="index.html#fix/unencrypted-storage">Open in the site</a></p>
+  </section>
+  <section id="iam-wildcard">
+    <h3>CKV_AWS_62: IAM policy allows * on *</h3>
+    <p class="tag">checkov, trivy config</p>
+    <h4>The error</h4>
+    <pre><code>Check: CKV_AWS_62: &quot;Ensure IAM policies that allow full &quot;*-*&quot; administrative privileges are not created&quot;</code></pre>
+    <h4>What it means</h4>
+    <p>A quick fix for AccessDenied.</p>
+    <h4>Confirm it</h4>
+    <pre><code>checkov -d terraform
+trivy config terraform</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Name the actions and resources. IAM Access Analyzer can generate a policy from CloudTrail activity.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Review IAM changes like code; permission boundaries.</p>
+    <p>Practise it: <a href="index.html#play/iam-wildcard">IAM policy with * on *</a> · <a href="index.html#fix/iam-wildcard">Open in the site</a></p>
+  </section>
+  <section id="imdsv1">
+    <h3>CKV_AWS_79: instance metadata service v1 enabled</h3>
+    <p class="tag">checkov</p>
+    <h4>The error</h4>
+    <pre><code>Check: CKV_AWS_79: &quot;Ensure Instance Metadata Service Version 1 is not enabled&quot;</code></pre>
+    <h4>What it means</h4>
+    <p>http_tokens = &quot;optional&quot; lets a plain GET (for example through an SSRF bug) read the instance role's credentials.</p>
+    <h4>Confirm it</h4>
+    <pre><code>checkov -d terraform
+aws ec2 describe-instances --query 'Reservations[].Instances[].MetadataOptions'</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>metadata_options { http_tokens = &quot;required&quot; } on instances and launch templates.</li>
+      <li>Fix the SSRF itself: allowlist the hosts the app may fetch.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Set the account default to IMDSv2 only.</p>
+    <p>Practise it: <a href="index.html#play/imdsv1">IMDSv1 and an SSRF</a> · <a href="index.html#fix/imdsv1">Open in the site</a></p>
+  </section>
+  <h2 id="kubernetes">Kubernetes</h2>
+  <section id="privileged-pod">
+    <h3>kube-linter: privileged container or docker.sock mounted</h3>
+    <p class="tag">kube-linter</p>
+    <h4>The error</h4>
+    <pre><code>container &quot;debug&quot; is privileged (check: privileged-container, remediation: Do not run your container as privileged unless it is required.)</code></pre>
+    <h4>What it means</h4>
+    <p>privileged: true or a hostPath to the runtime socket gives root on the node.</p>
+    <h4>Confirm it</h4>
+    <pre><code>kube-linter lint k8s/</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Remove the sidecar; use kubectl debug for live debugging.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Pod Security Admission enforce: restricted on the namespace.</p>
+    <p>Practise it: <a href="index.html#play/privileged">Privileged Pod with the Docker socket</a> · <a href="index.html#fix/privileged-pod">Open in the site</a></p>
+  </section>
+  <section id="no-netpol">
+    <h3>conftest: namespace has no default-deny NetworkPolicy</h3>
+    <p class="tag">conftest</p>
+    <h4>The error</h4>
+    <pre><code>FAIL - k8s/deployment.yaml - main - namespace &quot;shop&quot; has no default-deny NetworkPolicy</code></pre>
+    <h4>What it means</h4>
+    <p>Without policies every Pod can reach every other Pod, across namespaces.</p>
+    <h4>Confirm it</h4>
+    <pre><code>kubectl get networkpolicy -n shop
+kubectl exec -n other deploy/x -- nc -zv postgres.shop:5432</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>A default-deny-ingress policy, then explicit allows for each flow (ingress controller, monitoring, app to database).</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>A policy check in CI and an allow rule added with each new flow.</p>
+    <p>Practise it: <a href="index.html#play/netpol">Missing NetworkPolicy</a> · <a href="index.html#fix/no-netpol">Open in the site</a></p>
+  </section>
+  <section id="cluster-admin">
+    <h3>ServiceAccount bound to cluster-admin</h3>
+    <p class="tag">kube-linter</p>
+    <h4>The error</h4>
+    <pre><code>cluster-admin role is bound to the service account api (check: cluster-admin-role-binding, ...)</code></pre>
+    <h4>What it means</h4>
+    <p>A forbidden error fixed with the biggest hammer.</p>
+    <h4>Confirm it</h4>
+    <pre><code>kubectl auth can-i --list --as=system:serviceaccount:&lt;ns&gt;:&lt;sa&gt; -n &lt;ns&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>A Role with the exact verbs and resources (and resourceNames), and a RoleBinding.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Review RBAC changes; kubectl auth can-i in tests.</p>
+    <p>Practise it: <a href="index.html#play/rbac">ServiceAccount bound to cluster-admin</a> · <a href="index.html#fix/cluster-admin">Open in the site</a></p>
+  </section>
+  <section id="secret-in-git-k8s">
+    <h3>Kubernetes Secret committed to git</h3>
+    <p class="tag">conftest, gitleaks</p>
+    <h4>The error</h4>
+    <pre><code>FAIL - k8s/secret.yaml - main - Secret &quot;orders-db&quot; is committed to git; create it from the secret store</code></pre>
+    <h4>What it means</h4>
+    <p>base64 in data: is an encoding anyone can reverse.</p>
+    <h4>Confirm it</h4>
+    <pre><code>git log --stat -- k8s/secret.yaml
+echo &lt;value&gt; | base64 -d</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Rotate, remove the file, purge history.</li>
+      <li>Sync from a secret store (External Secrets) or encrypt (Sealed Secrets, SOPS).</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>A policy that rejects kind: Secret in the repository.</p>
+    <p>Practise it: <a href="index.html#play/k8s-secret">Kubernetes Secret committed to git</a> · <a href="index.html#fix/secret-in-git-k8s">Open in the site</a></p>
+  </section>
+  <h2 id="ci-cd-and-supply-chain">CI/CD and supply chain</h2>
+  <section id="unpinned-action">
+    <h3>zizmor: unpinned action reference</h3>
+    <p class="tag">zizmor</p>
+    <h4>The error</h4>
+    <pre><code>error[unpinned-uses]: unpinned action reference</code></pre>
+    <h4>What it means</h4>
+    <p>uses: owner/action@v1 follows a tag that can be moved to new code.</p>
+    <h4>Confirm it</h4>
+    <pre><code>zizmor .github/workflows/
+git ls-remote https://github.com/&lt;owner&gt;/&lt;action&gt; refs/tags/&lt;tag&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>uses: owner/action@&lt;40-char sha&gt; # vX.Y.Z (for an annotated tag use the ^{} line).</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Dependabot for github-actions; an org policy requiring SHA pinning.</p>
+    <p>Practise it: <a href="index.html#play/unpinned-action">Unpinned GitHub Action</a> · <a href="index.html#fix/unpinned-action">Open in the site</a></p>
+  </section>
+  <section id="unresolvable-sha">
+    <h3>Unable to resolve action, unable to find version</h3>
+    <p class="tag">GitHub Actions</p>
+    <h4>The error</h4>
+    <pre><code>Error: Unable to resolve action `actions/setup-python@1111...`, unable to find version `1111...`</code></pre>
+    <h4>What it means</h4>
+    <p>The SHA is not a commit in that repository (typo, short SHA, or a tag object SHA).</p>
+    <h4>Confirm it</h4>
+    <pre><code>git ls-remote https://github.com/actions/setup-python | grep &lt;tag&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Use the commit SHA; for annotated tags, the line ending in ^{}.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Let a bot write pins.</p>
+    <p>Practise it: <a href="index.html#play/unpinned-action">Unpinned GitHub Action</a> · <a href="index.html#fix/unresolvable-sha">Open in the site</a></p>
+  </section>
+  <section id="template-injection">
+    <h3>zizmor: code injection via template expansion</h3>
+    <p class="tag">zizmor</p>
+    <h4>The error</h4>
+    <pre><code>error[template-injection]: code injection via template expansion</code></pre>
+    <h4>What it means</h4>
+    <p>${{ github.event.issue.title }} or similar is pasted into a run: script before the shell runs.</p>
+    <h4>Confirm it</h4>
+    <pre><code>zizmor .github/workflows/</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>env: TITLE: ${{ github.event.issue.title }}, then &quot;$TITLE&quot; in the script.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Never expand event fields in run:.</p>
+    <p>Practise it: <a href="index.html#play/script-injection">Script injection in a workflow</a> · <a href="index.html#fix/template-injection">Open in the site</a></p>
+  </section>
+  <section id="excessive-permissions">
+    <h3>zizmor: overly broad permissions</h3>
+    <p class="tag">zizmor, Scorecard</p>
+    <h4>The error</h4>
+    <pre><code>warning[excessive-permissions]: overly broad permissions</code></pre>
+    <h4>What it means</h4>
+    <p>permissions: write-all, or no permissions block with a permissive repository default.</p>
+    <h4>Confirm it</h4>
+    <pre><code>zizmor .github/workflows/</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>permissions: contents: read at the top; add packages: write or id-token: write on the job that needs it.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Set the repository default to read-only.</p>
+    <p>Practise it: <a href="index.html#play/token-perms">Overly broad GITHUB_TOKEN</a>, <a href="index.html#play/scorecard">Low OpenSSF Scorecard</a> · <a href="index.html#fix/excessive-permissions">Open in the site</a></p>
+  </section>
+  <section id="ghcr-denied">
+    <h3>denied: installation not allowed to Write organization package</h3>
+    <p class="tag">docker push (GHCR)</p>
+    <h4>The error</h4>
+    <pre><code>denied: installation not allowed to Write organization package</code></pre>
+    <h4>What it means</h4>
+    <p>The job's GITHUB_TOKEN lacks packages: write.</p>
+    <h4>Confirm it</h4>
+    <pre><code>grep -n -A4 permissions .github/workflows/ci.yml</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Add permissions: packages: write to that job only.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Per-job permissions.</p>
+    <p>Practise it: <a href="index.html#play/token-perms">Overly broad GITHUB_TOKEN</a> · <a href="index.html#fix/ghcr-denied">Open in the site</a></p>
+  </section>
+  <section id="oidc-id-token">
+    <h3>Credentials could not be loaded (OIDC id-token missing)</h3>
+    <p class="tag">aws-actions/configure-aws-credentials</p>
+    <h4>The error</h4>
+    <pre><code>It looks like you might be trying to authenticate with OIDC. Did you mean to set the `id-token` permission?
+Error: Credentials could not be loaded, please check your action inputs: Could not load credentials from any providers</code></pre>
+    <h4>What it means</h4>
+    <p>role-to-assume without permissions: id-token: write on the job.</p>
+    <h4>Confirm it</h4>
+    <pre><code>grep -n -B2 -A6 configure-aws-credentials .github/workflows/*.yml</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Add id-token: write to the job; check the role's trust policy names this repository and branch.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>OIDC for every cloud, no stored keys.</p>
+    <p>Practise it: <a href="index.html#play/oidc">Long-lived cloud keys in CI</a> · <a href="index.html#fix/oidc-id-token">Open in the site</a></p>
+  </section>
+  <section id="secret-in-logs">
+    <h3>A secret appears in CI logs (base64 or transformed)</h3>
+    <p class="tag">GitHub Actions</p>
+    <h4>The error</h4>
+    <pre><code>Run echo &quot;$PIP_TOKEN&quot; | base64
+UFJBQ1RJQ0Ut...</code></pre>
+    <h4>What it means</h4>
+    <p>Masking only hides the exact secret value; encodings and substrings print in clear.</p>
+    <h4>Confirm it</h4>
+    <pre><code>gh run view &lt;id&gt; --log | grep -A1 base64</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Rotate the secret and update it where CI reads it.</li>
+      <li>Remove the step; gh run delete &lt;id&gt; for affected runs.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Never print secrets; review debug steps.</p>
+    <p>Practise it: <a href="index.html#play/log-leak">Secret printed in CI logs</a> · <a href="index.html#fix/secret-in-logs">Open in the site</a></p>
+  </section>
+  <section id="pr-target">
+    <h3>Scorecard: Dangerous-Workflow 0 (pull_request_target)</h3>
+    <p class="tag">Scorecard, zizmor</p>
+    <h4>The error</h4>
+    <pre><code>| 0 / 10  | Dangerous-Workflow     | dangerous workflow patterns detected |</code></pre>
+    <h4>What it means</h4>
+    <p>pull_request_target checks out and runs fork code with secrets and a write token.</p>
+    <h4>Confirm it</h4>
+    <pre><code>scorecard --repo=github.com/&lt;owner&gt;/&lt;repo&gt;
+zizmor .github/workflows/</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Use on: pull_request for anything that runs PR code.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Keep pull_request_target for metadata only.</p>
+    <p>Practise it: <a href="index.html#play/scorecard">Low OpenSSF Scorecard</a> · <a href="index.html#fix/pr-target">Open in the site</a></p>
+  </section>
+  <section id="trivy-ratelimit">
+    <h3>trivy: TOOMANYREQUESTS downloading the vulnerability DB</h3>
+    <p class="tag">trivy</p>
+    <h4>The error</h4>
+    <pre><code>FATAL	Fatal error	run error: init error: DB error: failed to download vulnerability DB ...
+	* GET https://ghcr.io/v2/aquasecurity/trivy-db/manifests/2: TOOMANYREQUESTS: retry-after: 663.26µs, allowed: 44000/minute</code></pre>
+    <h4>What it means</h4>
+    <p>Too many anonymous pulls of the database from one registry.</p>
+    <h4>Confirm it</h4>
+    <pre><code>trivy fs --scanners vuln --db-repository ghcr.io/aquasecurity/trivy-db:2 .</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Use mirrors: --db-repository mirror.gcr.io/aquasec/trivy-db:2,public.ecr.aws/aquasecurity/trivy-db:2.</li>
+      <li>Cache the database between runs.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Mirror and cache every scanner database; never continue-on-error.</p>
+    <p>Practise it: <a href="index.html#play/trivy-ratelimit">Scanner database rate limited</a> · <a href="index.html#fix/trivy-ratelimit">Open in the site</a></p>
+  </section>
+  <section id="skip-db-update">
+    <h3>--skip-db-update cannot be specified on the first run</h3>
+    <p class="tag">trivy</p>
+    <h4>The error</h4>
+    <pre><code>FATAL	Fatal error	flag error: --skip-db-update cannot be specified on the first run</code></pre>
+    <h4>What it means</h4>
+    <p>No cached database exists on a fresh runner.</p>
+    <h4>Confirm it</h4>
+    <pre><code>ls ~/.cache/trivy/db</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Restore the cache before the scan, or download from a mirror.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Cache keyed by date.</p>
+    <p>Practise it: <a href="index.html#play/trivy-ratelimit">Scanner database rate limited</a> · <a href="index.html#fix/skip-db-update">Open in the site</a></p>
+  </section>
+  <section id="pip-401">
+    <h3>401 Client Error: Unauthorized from the package index</h3>
+    <p class="tag">pip</p>
+    <h4>The error</h4>
+    <pre><code>ERROR: 401 Client Error: Unauthorized for url: https://pypi.fernleaf.internal/simple/fernleaf-billing/</code></pre>
+    <h4>What it means</h4>
+    <p>The token CI passes is old or empty, often right after a rotation.</p>
+    <h4>Confirm it</h4>
+    <pre><code>gh secret list
+aws secretsmanager get-secret-value --secret-id &lt;id&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Update the CI secret with the current value (gh secret set NAME --body ...).</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Fetch the token at run time (OIDC to the secret store) instead of copying it.</p>
+    <p>Practise it: <a href="index.html#play/build-args">Secret passed as a build argument</a>, <a href="index.html#play/log-leak">Secret printed in CI logs</a> · <a href="index.html#fix/pip-401">Open in the site</a></p>
+  </section>
+  <section id="no-signatures">
+    <h3>cosign: no signatures found / no matching signatures</h3>
+    <p class="tag">cosign, Kyverno</p>
+    <h4>The error</h4>
+    <pre><code>Error: no signatures found
+main.go:74: error during command execution: no signatures found</code></pre>
+    <h4>What it means</h4>
+    <p>The image was never signed, or signed by an identity the policy does not trust (a laptop).</p>
+    <h4>Confirm it</h4>
+    <pre><code>cosign tree &lt;image&gt;
+cosign verify --certificate-identity &lt;workflow-ref&gt; --certificate-oidc-issuer https://token.actions.githubusercontent.com &lt;image&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Sign in CI (keyless) and deploy what CI built.</li>
+      <li>Set the admission policy to Enforce once CI signs.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Admission control in enforce mode.</p>
+    <p>Practise it: <a href="index.html#play/unsigned-image">Unsigned image deployed</a> · <a href="index.html#fix/no-signatures">Open in the site</a></p>
+  </section>
+  <section id="kyverno-denied">
+    <h3>admission webhook denied the request: failed to verify image</h3>
+    <p class="tag">Kyverno</p>
+    <h4>The error</h4>
+    <pre><code>admission webhook &quot;mutate.kyverno.svc-fail&quot; denied the request: ... failed to verify image ...: no signatures found</code></pre>
+    <h4>What it means</h4>
+    <p>The policy enforces signatures and the image has none from the trusted identity.</p>
+    <h4>Confirm it</h4>
+    <pre><code>kubectl get clusterpolicy
+cosign verify ... &lt;image&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Deploy an image built and signed by CI; do not switch the policy to Audit.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Deploy only from the pipeline.</p>
+    <p>Practise it: <a href="index.html#play/unsigned-image">Unsigned image deployed</a> · <a href="index.html#fix/kyverno-denied">Open in the site</a></p>
+  </section>
+  <section id="missing-sbom">
+    <h3>Release gate: SBOM required but missing</h3>
+    <p class="tag">policy gate</p>
+    <h4>The error</h4>
+    <pre><code>policy: sbom: required, but the image has no CycloneDX attestation</code></pre>
+    <h4>What it means</h4>
+    <p>No SBOM generated, or not attached to the image.</p>
+    <h4>Confirm it</h4>
+    <pre><code>cosign tree &lt;image&gt;
+cosign verify-attestation --type cyclonedx ... &lt;image&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>syft &lt;image&gt; -o cyclonedx-json=sbom.cdx.json, then cosign attest --type cyclonedx --predicate sbom.cdx.json &lt;image&gt;.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>SBOM and attestation as required CI steps.</p>
+    <p>Practise it: <a href="index.html#play/missing-sbom">Missing SBOM for an audit</a> · <a href="index.html#fix/missing-sbom">Open in the site</a></p>
+  </section>
+  <section id="branch-protection-off">
+    <h3>Commits reach main without review</h3>
+    <p class="tag">GitHub, Scorecard</p>
+    <h4>The error</h4>
+    <pre><code>| 0 / 10  | Branch-Protection      | branch protection not enabled on development/release branches |</code></pre>
+    <h4>What it means</h4>
+    <p>Branch protection was relaxed: no required reviews, admins exempt (enforce_admins false) or force pushes allowed.</p>
+    <h4>Confirm it</h4>
+    <pre><code>gh api repos/&lt;owner&gt;/&lt;repo&gt;/branches/main/protection
+git log --oneline origin/main</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Revert unreviewed changes with git revert, keeping the record.</li>
+      <li>Restore the policy: gh api -X PUT repos/&lt;owner&gt;/&lt;repo&gt;/branches/main/protection --input branch-protection.json, with enforce_admins true.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Keep the policy in code and alert on changes to it (audit log, rulesets).</p>
+    <p>Practise it: <a href="index.html#play/branch-protection">Branch protection bypassed</a> · <a href="index.html#fix/branch-protection-off">Open in the site</a></p>
+  </section>
+  <section id="tag-moved">
+    <h3>A tag was re-pushed and the cluster runs different code</h3>
+    <p class="tag">Kyverno, registry</p>
+    <h4>The error</h4>
+    <pre><code>verifyImages:
+  - imageReferences: [&quot;ghcr.io/fernleaf/*&quot;]
+    mutateDigest: false
+    verifyDigest: false</code></pre>
+    <h4>What it means</h4>
+    <p>Tags are mutable pointers. Without digest pinning, a restart pulls whatever the tag points to now.</p>
+    <h4>Confirm it</h4>
+    <pre><code>kubectl get pods -o jsonpath='{.items[*].status.containerStatuses[*].imageID}'
+cosign triangulate &lt;image&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Deploy by digest or by an immutable per-commit tag.</li>
+      <li>Keep Kyverno's verifyDigest and mutateDigest on (both default to true).</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Immutable tags where the registry supports them (ECR IMMUTABLE).</p>
+    <p>Practise it: <a href="index.html#play/tag-mutability">Mutable tags and digest pinning</a> · <a href="index.html#fix/tag-moved">Open in the site</a></p>
+  </section>
+  <h2 id="git-history">Git history</h2>
+  <section id="filter-repo-fresh">
+    <h3>git filter-repo: Refusing to destructively overwrite repo history</h3>
+    <p class="tag">git filter-repo</p>
+    <h4>The error</h4>
+    <pre><code>Aborting: Refusing to destructively overwrite repo history since
+this does not look like a fresh clone.</code></pre>
+    <h4>What it means</h4>
+    <p>filter-repo protects work in non-fresh clones.</p>
+    <h4>Confirm it</h4>
+    <pre><code>git status</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Work in a fresh clone (git clone --mirror), or add --force once you are sure.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Keep a backup clone before rewriting.</p>
+    <p>Practise it: <a href="index.html#play/aws-key">AWS key committed</a>, <a href="index.html#play/dotenv">.env committed</a>, <a href="index.html#play/k8s-secret">Kubernetes Secret committed to git</a> · <a href="index.html#fix/filter-repo-fresh">Open in the site</a></p>
+  </section>
+  <section id="origin-removed">
+    <h3>'origin' does not appear to be a git repository (after filter-repo)</h3>
+    <p class="tag">git push</p>
+    <h4>The error</h4>
+    <pre><code>fatal: 'origin' does not appear to be a git repository</code></pre>
+    <h4>What it means</h4>
+    <p>git filter-repo removes origin on purpose, so you do not push rewritten history by accident.</p>
+    <h4>Confirm it</h4>
+    <pre><code>git remote -v</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>git remote add origin &lt;url&gt;, then git push --force --all (and --tags). Tell collaborators to re-clone.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Coordinate rewrites; protect branches against force-push except for this.</p>
+    <p>Practise it: <a href="index.html#play/aws-key">AWS key committed</a>, <a href="index.html#play/dotenv">.env committed</a>, <a href="index.html#play/k8s-secret">Kubernetes Secret committed to git</a> · <a href="index.html#fix/origin-removed">Open in the site</a></p>
+  </section>
+  <h2 id="runtime-and-response">Runtime and response</h2>
+  <section id="zap-headers">
+    <h3>ZAP: CSP / HSTS / X-Content-Type-Options header not set</h3>
+    <p class="tag">ZAP baseline</p>
+    <h4>The error</h4>
+    <pre><code>FAIL-NEW: Content Security Policy (CSP) Header Not Set [10038] x 4</code></pre>
+    <h4>What it means</h4>
+    <p>The app or proxy does not send the security headers.</p>
+    <h4>Confirm it</h4>
+    <pre><code>curl -sI https://&lt;staging&gt;/</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Set the headers in the app (after_request) or at the ingress.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Keep the ZAP rules file at FAIL for these IDs.</p>
+    <p>Practise it: <a href="index.html#play/dast-headers">DAST: missing security headers</a> · <a href="index.html#fix/zap-headers">Open in the site</a></p>
+  </section>
+  <section id="new-advisory">
+    <h3>New critical advisory for something already in production</h3>
+    <p class="tag">grype, osv-scanner</p>
+    <h4>The error</h4>
+    <pre><code>quickcache  3.4.0  3.4.1  python  PRACTICE-2026-0058  Critical</code></pre>
+    <h4>What it means</h4>
+    <p>Advisories are published after release; build-time scans cannot know them.</p>
+    <h4>Confirm it</h4>
+    <pre><code>grype sbom:./sbom.cdx.json
+cosign verify-attestation --type cyclonedx ... &lt;running image&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Upgrade, release through the pipeline, confirm the running image.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Rescan SBOMs of running images daily.</p>
+    <p>Practise it: <a href="index.html#play/cve-in-prod">New critical CVE in production</a> · <a href="index.html#fix/new-advisory">Open in the site</a></p>
+  </section>
+  <section id="key-used">
+    <h3>Leaked key already used by an attacker</h3>
+    <p class="tag">aws, CloudTrail</p>
+    <h4>The error</h4>
+    <pre><code>&quot;EventName&quot;: &quot;CreateUser&quot;, ... &quot;SourceIPAddress&quot;: &quot;203.0.113.77&quot;</code></pre>
+    <h4>What it means</h4>
+    <p>The key was found and used; attackers create persistence early.</p>
+    <h4>Confirm it</h4>
+    <pre><code>aws cloudtrail lookup-events --lookup-attributes AttributeKey=AccessKeyId,AttributeValue=&lt;key&gt;
+aws cloudtrail lookup-events --region &lt;other-region&gt; ...</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Deactivate the key.</li>
+      <li>Remove what it created: users, keys, policies, instances, in every region.</li>
+      <li>Delete the backdoor user: delete its keys, detach its policies, then delete-user.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>No long-lived keys; GuardDuty; multi-region CloudTrail.</p>
+    <p>Practise it: <a href="index.html#play/leaked-token">Incident: leaked key used by an attacker</a> · <a href="index.html#fix/key-used">Open in the site</a></p>
+  </section>
+  <section id="delete-conflict">
+    <h3>DeleteConflict: Cannot delete entity, must detach all policies first</h3>
+    <p class="tag">aws iam</p>
+    <h4>The error</h4>
+    <pre><code>An error occurred (DeleteConflict) when calling the DeleteUser operation: Cannot delete entity, must detach all policies first.</code></pre>
+    <h4>What it means</h4>
+    <p>IAM users must have no keys, policies or group memberships before deletion.</p>
+    <h4>Confirm it</h4>
+    <pre><code>aws iam list-attached-user-policies --user-name &lt;user&gt;
+aws iam list-access-keys --user-name &lt;user&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>delete-access-key, detach-user-policy, then delete-user.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Prefer roles to users.</p>
+    <p>Practise it: <a href="index.html#play/leaked-token">Incident: leaked key used by an attacker</a> · <a href="index.html#fix/delete-conflict">Open in the site</a></p>
+  </section>
+  <footer class="foot-base">
+    <p>© 2024–2026 Sandeep Komal Pothu and contributors. MIT License.</p>
+    <p>Product names are trademarks of their respective owners. This project is independent and not affiliated with any of them.</p>
+  </footer>
+</main>
+</body>
+</html>

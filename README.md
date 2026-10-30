@@ -1,6 +1,27 @@
 # DevSecOps Security Lab
 
-A practical defense-in-depth DevSecOps reference repository built with GitHub Actions.
+A practical defense-in-depth DevSecOps reference repository built with GitHub Actions,
+and **DevSecOps Quest**, a free learning site built from it: https://sandeepkomal.github.io/DevSecOps/
+
+## DevSecOps Quest (the learning site)
+
+`site/` is a static site with no dependencies, trackers or cookies:
+
+- **Path**: fourteen levels from shift-left basics to incident response, each tied to the workflows below, with a hands-on lab.
+- **Playground**: a pipeline simulator in the browser: a practice repository (Python code, dependencies, Dockerfile, Terraform, Kubernetes manifests, CI workflow, git history) and simulated scanners (gitleaks, Semgrep, OSV-Scanner, Trivy, Grype, Syft, cosign, Checkov, kube-linter, conftest, zizmor, Scorecard, ZAP). 49 scenarios from a committed AWS key to a live incident.
+- **Pipeline X-ray**: paste a workflow, Dockerfile, Terraform or Kubernetes manifest; every line is explained and security issues are flagged.
+- **Troubleshoot**: scanner findings and error messages with cause, confirmation, fix and prevention; also as a plain page, `site/problems.html`.
+- **Quiz**, **Cheat sheet** and an interactive **DevSecOps architecture** of the secure SDLC.
+
+Practice data: every advisory ID (`PRACTICE-2026-...`), key, token and password in the site is invented.
+They are allowlisted, with comments, in `.gitleaks.toml`, `trivy-secret.yaml`, `.semgrepignore` and `.secretsallow`.
+
+Run the site's checks with Node (no install needed):
+
+```bash
+node tests/check_site_data.js && node tests/check_playground.js && node tests/check_xray.js && node tests/check_problems.js && node tests/fuzz_playground.js
+node scripts/build-problems.js   # after changing troubleshooting entries in site/data.js
+```
 
 ## Security coverage
 
@@ -58,6 +79,8 @@ Commit / PR
 - `.github/workflows/cloud-security.yml` — manual AWS Prowler assessment
 - `.github/workflows/zap_dast.yml` — existing EKS deployment + OWASP ZAP DAST
 - `.github/workflows/dast-nikto.yml` — manual Nikto web scan
+- `.github/workflows/site-ci.yml` — tests and fuzzing for the learning site
+- `.github/workflows/pages.yml` — publishes `site/` to GitHub Pages
 
 ## AWS cloud security
 

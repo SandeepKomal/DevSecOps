@@ -1,0 +1,25 @@
+# gitleaks configuration: the default rules, plus a narrow allowlist for the
+# learning site in site/.
+#
+# The playground simulates leaked credentials and vulnerable code on purpose.
+# Every practice credential is invented and contains PRACTICE, so it cannot be
+# a real one; those values are allowed anywhere. The simulator's own source
+# (its scanners, practice repository and scenario data) and its tests are full
+# of secret-shaped code and strings by design, so findings in exactly those
+# files are allowed too. Every other file, including the rest of site/, is
+# scanned with the default rules.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Practice data and the simulator that uses it (site/)"
+regexes = [
+  '''AKIAPRACTICE[A-Z2-7]{8}''',
+  '''ghp_PRACTICE[A-Za-z0-9]+''',
+  '''PRACTICE[-/][A-Za-z0-9/+=_-]+''',
+]
+paths = [
+  '''^site/(rules|repo|sim|shell|scenarios|data|xray-explain)\.js$''',
+  '''^site/problems\.html$''',
+  '''^tests/(check_playground|check_xray|fuzz_playground)\.js$''',
+]

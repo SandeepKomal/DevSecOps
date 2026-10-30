@@ -30,12 +30,13 @@ jobs:
             python -m pip install --upgrade pip
             pip install -r requirements.txt
           fi
-      - name: Run tests when tests exist
+      # tests/ also holds the learning site's Node tests (run by site-ci.yml); pytest only runs Python tests
+      - name: Run Python tests when they exist
         run: |
-          if [ -d tests ]; then
+          if find tests -name 'test_*.py' -print -quit 2>/dev/null | grep -q .; then
             pytest -q
           else
-            echo "No tests directory found; skipping pytest."
+            echo "No Python tests found; skipping pytest."
           fi
 
   security-gates:
