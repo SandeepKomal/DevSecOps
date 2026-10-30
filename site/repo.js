@@ -132,7 +132,7 @@ boto3
 pyyaml
 imgresize
 reportgen
-plotkit
+plotkit<2
 quickcache
 fernleaf-billing
 `,
@@ -597,7 +597,7 @@ deny contains msg if {
     reportgen: { "1.8.0": { license: "Apache-2.0", deps: { xmlsafe: "<0.9.3" } }, "1.9.0": { license: "Apache-2.0", deps: { xmlsafe: ">=0.9.5" } } },
     xmlsafe: { "0.9.0": { license: "BSD-3-Clause" }, "0.9.2": { license: "BSD-3-Clause" }, "0.9.5": { license: "BSD-3-Clause" } },
     pdfstamp: { "4.2.0": { license: "MIT" } },
-    plotkit: { "1.6.0": { license: "MIT" } },
+    plotkit: { "1.6.0": { license: "MIT" }, "2.0.0": { license: "MIT" } },
     chartforge: { "2.0.0": { license: "AGPL-3.0-only" } },
     quickcache: { "3.4.0": { license: "MIT" }, "3.4.1": { license: "MIT" } },
     requests: { "2.32.3": { license: "Apache-2.0", deps: { urllib3: ">=1.21.1", idna: ">=2.5", certifi: ">=2017.4.17", "charset-normalizer": ">=2" } } },
@@ -619,20 +619,21 @@ deny contains msg if {
     { id: "PRACTICE-2026-0058", pkg: "quickcache", below: "3.4.1", fixed: "3.4.1", sev: "CRITICAL", cvss: "9.8", title: "quickcache: unpickling cache entries from a shared store allows remote code execution", published: "today" }
   ];
 
-  // Operating-system packages in each base image, with practice advisories.
+  // Operating-system packages in each base image, with practice advisories. The
+  // package names are invented too, so no finding points at a real package.
   const BASES = {
     "python:3.12": { os: "debian 12.7", packages: 431, vulns: [
-      ["libexpat1", "2.5.0-1", "PRACTICE-2026-0101", "CRITICAL", "2.5.0-1+deb12u2", "expat: integer overflow in XML_GetBuffer"],
-      ["imagemagick-6-common", "8:6.9.11.60+dfsg-1.6", "PRACTICE-2026-0102", "CRITICAL", "8:6.9.11.60+dfsg-1.6+deb12u3", "ImageMagick: heap overflow reading crafted PSD files"],
-      ["libssl3", "3.0.15-1~deb12u1", "PRACTICE-2026-0103", "HIGH", "3.0.17-1~deb12u2", "openssl: timing side channel in RSA decryption"],
-      ["libxml2", "2.9.14+dfsg-1.3~deb12u1", "PRACTICE-2026-0104", "HIGH", "2.9.14+dfsg-1.3~deb12u2", "libxml2: use-after-free in xmlXIncludeAddNode"],
-      ["curl", "7.88.1-10+deb12u7", "PRACTICE-2026-0105", "HIGH", "7.88.1-10+deb12u12", "curl: credentials leaked on cross-protocol redirect"],
-      ["git", "1:2.39.5-0+deb12u1", "PRACTICE-2026-0106", "HIGH", "1:2.39.5-0+deb12u2", "git: crafted repository runs hooks on clone"],
-      ["perl-base", "5.36.0-7+deb12u1", "PRACTICE-2026-0107", "HIGH", null, "perl: heap overflow in tr operator"],
-      ["libsqlite3-0", "3.40.1-2", "PRACTICE-2026-0108", "MEDIUM", "3.40.1-2+deb12u1", "sqlite: out-of-bounds read in FTS5"]
+      ["libpractice-xmlparse1", "2.5.0-1", "PRACTICE-2026-0101", "CRITICAL", "2.5.0-1+p2", "practice-xmlparse: integer overflow in the buffer API"],
+      ["practice-imgtools-common", "6.9.11-1", "PRACTICE-2026-0102", "CRITICAL", "6.9.11-1+p3", "practice-imgtools: heap overflow reading crafted image files"],
+      ["libpractice-tls3", "3.0.15-1", "PRACTICE-2026-0103", "HIGH", "3.0.17-1", "practice-tls: timing side channel in RSA decryption"],
+      ["libpractice-markup2", "2.9.14-1", "PRACTICE-2026-0104", "HIGH", "2.9.14-1+p2", "practice-markup: use-after-free when including documents"],
+      ["practice-fetch", "7.88.1-10", "PRACTICE-2026-0105", "HIGH", "7.88.1-12", "practice-fetch: credentials leaked on cross-protocol redirect"],
+      ["practice-vcs", "2.39.5-1", "PRACTICE-2026-0106", "HIGH", "2.39.5-2", "practice-vcs: crafted repository runs hooks on clone"],
+      ["practice-scriptlang-base", "5.36.0-7", "PRACTICE-2026-0107", "HIGH", null, "practice-scriptlang: heap overflow in the translate operator"],
+      ["libpractice-sqlstore0", "3.40.1-2", "PRACTICE-2026-0108", "MEDIUM", "3.40.1-3", "practice-sqlstore: out-of-bounds read in full-text search"]
     ], totals: { UNKNOWN: 2, LOW: 118, MEDIUM: 61, HIGH: 24, CRITICAL: 5 } },
     "python:3.12-slim": { os: "debian 12.7", packages: 87, vulns: [
-      ["libc6", "2.36-9+deb12u8", "PRACTICE-2026-0120", "MEDIUM", null, "glibc: stack exhaustion in regcomp with crafted patterns"]
+      ["libpractice-cstd6", "2.36-9", "PRACTICE-2026-0120", "MEDIUM", null, "practice-cstd: stack exhaustion with crafted regular expressions"]
     ], totals: { UNKNOWN: 0, LOW: 21, MEDIUM: 6, HIGH: 0, CRITICAL: 0 } },
     "python:3.12-alpine": { os: "alpine 3.20.3", packages: 38, vulns: [], totals: { UNKNOWN: 0, LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0 } },
     "gcr.io/distroless/python3-debian12": { os: "debian 12.7", packages: 23, vulns: [], totals: { UNKNOWN: 0, LOW: 4, MEDIUM: 1, HIGH: 0, CRITICAL: 0 } },
@@ -649,7 +650,8 @@ deny contains msg if {
   const ACTION_TAGS = {
     "actions/checkout": { "v6.1.0": "d23441a48e516b6c34aea4fa41551a30e30af803" },
     "actions/setup-python": { "v6.0.0": "e797f83bcb11b83ae66e0230d6156d7c80228e7c", "v6.1.0": "83679a892e2d95755f2dac6acb0bfd1e9ac5d548", "v6.2.0": "a309ff8b426b58ec0e2a45f0f869d46889d02405", "v6.3.0": "ece7cb06caefa5fff74198d8649806c4678c61a1", v6: "ece7cb06caefa5fff74198d8649806c4678c61a1" },
-    "aws-actions/configure-aws-credentials": { v5: "61815dcd50bd041e203e49132bacad1fd04d2708" }
+    "aws-actions/configure-aws-credentials": { v5: "61815dcd50bd041e203e49132bacad1fd04d2708" },
+    "dependabot/fetch-metadata": { "v3.1.0": "25dd0e34f4fe68f24cc83900b1fe3fe149efef98" }
   };
 
   root.DSRepo = { FILES, LOCK_HEADER, INDEX, ADVISORIES, BASES, BASE_ALIASES, BASE_DIGESTS, ACTION_TAGS, CHECKOUT, AWS_CREDS };

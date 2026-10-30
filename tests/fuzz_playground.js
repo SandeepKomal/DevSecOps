@@ -29,7 +29,7 @@ const WORDS = ["git", "status", "log", "-p", "--oneline", "show", "HEAD", "HEAD~
   "aws", "iam", "list-access-keys", "--user-name", "fernleaf-uploader", "update-access-key", "--access-key-id", "AKIAPRACTICE7QK4WZ2N", "--status", "Inactive", "delete-user", "backup-svc",
   "secretsmanager", "rotate-secret", "--secret-id", "ci/pip-token", "get-secret-value", "--query", "SecretString", "--output", "text", "cloudtrail", "lookup-events", "--region", "us-east-2",
   "ec2", "terminate-instances", "--instance-ids", "i-0f3c9a1b7d2e4c8a1", "gh", "secret", "set", "PIP_TOKEN", "--body", "run", "list", "view", "--log", "delete", "workflow", "ci.yml",
-  "curl", "-sI", "https://staging.fernleaf.example/", "zap-baseline.py", "-t", "-c", ".zap/rules.tsv", "pipeline", "ls", "-a", "cat", "Dockerfile", "grep", "-rn", "password", "sed", "-i",
+  "curl", "-sI", "https://staging.fernleaf.example/", "api", "repos/fernleaf/api/branches/main/protection", "-X", "PUT", "--input", "docs/branch-protection.json", "pr", "merge", "101", "104", "revert", "--vex", "vex.openvex.json", "zap-baseline.py", "-t", "-c", ".zap/rules.tsv", "pipeline", "ls", "-a", "cat", "Dockerfile", "grep", "-rn", "password", "sed", "-i",
   "'s/a/b/g'", "'/x/d'", "'s/(/)/'", "'s#a#b#2'", "echo", ">", ">>", "|", "&&", "head", "-n", "3", "wc", "-l", "base64", "-d", "$(echo hi)", "$(", ")", "'", "\"", "\\", "nope", "", "-", "--"];
 const LINES = ["FROM python:3.12-slim", "FROM python:latest", "FROM nope:1", "FROM", "FROM python:3.12-slim@sha256:00", "FROM build AS x", "USER 10001", "USER root", "USER app", "ARG PIP_TOKEN",
   "COPY . .", "COPY .env /srv/.env", "COPY --from=nope /a /b", "RUN pip install -r requirements.txt", "RUN apt-get upgrade -y", "RUN rm /srv/.env", "ENV SECRET_TOKEN=abc", "CMD x", "", "RUN \\", "# c",
@@ -38,7 +38,7 @@ const LINES = ["FROM python:3.12-slim", "FROM python:latest", "FROM nope:1", "FR
   "on: pull_request_target", "permissions: write-all", "jobs:", "  a:", "    steps:", "      - uses: actions/checkout@v4", "      - run: echo ${{ github.event.issue.title }}", "        continue-on-error: true",
   "<<EOF", "EOF", "/*", "\"unterminated", "\t\t", "requests==", "--extra-index-url https://pypi.org/simple", "[[IgnoredVulns]]", "id = \"PRACTICE-2026-0012\"", "ignoreUntil = nope"];
 const FILES_TO_BREAK = ["Dockerfile", "requirements.in", "requirements.txt", "terraform/main.tf", "k8s/deployment.yaml", "k8s/rbac.yaml", "k8s/networkpolicy.yaml", "k8s/verify-images.yaml",
-  ".github/workflows/ci.yml", "security/policy.yaml", ".zap/rules.tsv", "app/main.py", "osv-scanner.toml", ".gitleaksignore", ".gitleaks.toml"];
+  ".github/workflows/ci.yml", "security/policy.yaml", ".zap/rules.tsv", "app/main.py", "osv-scanner.toml", ".gitleaksignore", ".gitleaks.toml", "vex.openvex.json", "docs/branch-protection.json"];
 const randomText = () => Array.from({ length: 1 + rand(14) }, () => pick(LINES)).join(pick(["\n", "\r\n", "\n\n"]));
 
 const rounds = Number(process.argv[2]) || 3000;

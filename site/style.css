@@ -458,3 +458,4 @@ kbd { font-weight: 500; font-size: .72rem; line-height: 1; color: var(--muted); 
 .problems h3 { margin: 0 0 4px; font-size: 1.2rem; }
 .problems h4 { margin: 16px 0 6px; font-size: .84rem; color: var(--muted); letter-spacing: 0; }
 .problems pre { white-space: pre-wrap; word-break: break-word; }
+.problems li, .problems p, .fix li, .fix p { overflow-wrap: anywhere; }

@@ -38,7 +38,7 @@ for (const sc of SCENARIOS) {
   assert.ok(sc.checks.length >= 2, `${sc.id}: live status checks`);
   for (const t of sc.tries) assert.ok(run(s, t).length > 0, `${sc.id}: "${t}" prints something`);
 }
-assert.ok(SCENARIOS.length >= 40, "at least 40 scenarios");
+assert.ok(SCENARIOS.length >= 49, "at least 49 scenarios");
 assert.deepStrictEqual(GROUPS.flatMap(([, x]) => x).sort(), SCENARIOS.map((x) => x.id).sort());
 
 let s;
@@ -185,7 +185,7 @@ run(s, "sed -i 's/AGPL-3.0-only, //' security/policy.yaml");
 assert.match(ship(s, "Allow AGPL"), /policy\.yaml was loosened/);
 assert.ok(!won(s));
 run(s, "git checkout HEAD~1 -- security/policy.yaml");
-run(s, "sed -i 's/^chartforge$/plotkit/' requirements.in");
+run(s, "sed -i 's/^chartforge$/plotkit<2/' requirements.in");
 run(s, "pip-compile requirements.in");
 ship(s, "Back to plotkit");
 fixedPassing(s, "replacing the package");
@@ -226,7 +226,7 @@ fixedPassing(s, "escaping every value");
 
 // Hard-coded password: --no-verify puts it into history.
 s = fresh("hardcoded");
-assert.match(run(s, 'git commit -m "Add ping"'), /generic-password[\s\S]*leaks found: 1/);
+assert.match(run(s, 'git commit -m "Add ping"'), /generic-api-key[\s\S]*leaks found: 1/);
 run(s, 'git commit --no-verify -m "Add ping"');
 run(s, "sed -i 's/password=\"PRACTICE-db-Hq7mV2xLp9\",/password=os.environ[\"DB_PASSWORD\"],/' app/db.py");
 ship(s, "Read it from the environment");
@@ -294,7 +294,7 @@ fixedPassing(s, "a numeric non-root USER");
 // Base image: apt-get upgrade or ignoring unfixed does not make it small.
 s = fresh("base-image");
 edit(s, "Dockerfile", "COPY app/ /srv/app/", "RUN apt-get update && apt-get upgrade -y\nCOPY app/ /srv/app/");
-assert.match(ship(s, "Upgrade packages"), /Image scan\s+1 blocking[\s\S]*perl-base/);
+assert.match(ship(s, "Upgrade packages"), /Image scan\s+1 blocking[\s\S]*practice-scriptlang-base/);
 edit(s, ".github/workflows/ci.yml", "trivy image --pkg-types os", "trivy image --ignore-unfixed --pkg-types os");
 assert.match(ship(s, "Ignore unfixed"), /loosened the image scan/);
 assert.ok(!won(s));
@@ -531,6 +531,104 @@ assert.match(run(s, "pipeline"), /Dependencies\s+1 blocking/);
 run(s, "pip-compile --upgrade-package quickcache requirements.in");
 ship(s, "Upgrade quickcache");
 fixedPassing(s, "upgrading and releasing");
+
+// Terraform state: untracking without purging or rotating is not enough.
+s = fresh("tf-state");
+assert.match(run(s, "gitleaks git -v"), /RuleID:\s+generic-api-key[\s\S]*terraform\.tfstate/);
+run(s, "git rm --cached terraform/terraform.tfstate");
+run(s, "echo '*.tfstate*' >> .gitignore");
+ship(s, "Stop tracking state");
+assert.ok(!won(s), "still in history, no backend, not rotated");
+s.files["terraform/main.tf"] = `terraform {\n  backend "s3" {\n    bucket       = "fernleaf-tfstate"\n    key          = "api/terraform.tfstate"\n    region       = "eu-west-1"\n    encrypt      = true\n    use_lockfile = true\n  }\n}\n\n` + s.files["terraform/main.tf"];
+run(s, "aws secretsmanager rotate-secret --secret-id prod/orders/db");
+run(s, 'git commit -am "Remote, encrypted state"');
+purge(s, "--path terraform/terraform.tfstate --invert-paths");
+run(s, "pipeline");
+fixedPassing(s, "backend, rotate, purge");
+
+// IMDSv1: turning the endpoint off is not the answer the check wants; required tokens are.
+s = fresh("imdsv1");
+assert.match(run(s, "checkov -d terraform"), /CKV_AWS_79[\s\S]*aws_instance\.pdf_worker/);
+run(s, `sed -i 's/http_tokens   = "optional"/http_tokens   = "required"/' terraform/main.tf`);
+ship(s, "IMDSv2 only");
+fixedPassing(s, "http_tokens required");
+
+// Branch protection: reviews without enforce_admins leave the hole; revert plus the policy closes it.
+s = fresh("branch-protection");
+assert.match(run(s, "gh api repos/fernleaf/api/branches/main/protection"), /"enabled": false/);
+assert.match(run(s, "scorecard"), /0 \/ 10 *│ Branch-Protection/);
+const bad = run(s, "git log --oneline -n 1").split(" ")[0];
+s.files["weak.json"] = JSON.stringify({ required_status_checks: { strict: true, contexts: ["scan", "build"] }, enforce_admins: false, required_pull_request_reviews: { required_approving_review_count: 1, require_code_owner_reviews: true }, restrictions: null });
+run(s, "gh api -X PUT repos/fernleaf/api/branches/main/protection --input weak.json");
+run(s, "rm weak.json");
+assert.ok(!won(s), "admins are still exempt and the script is still there");
+assert.match(run(s, `git revert ${bad}`), /Revert "Speed up CI"/);
+run(s, "gh api -X PUT repos/fernleaf/api/branches/main/protection --input docs/branch-protection.json");
+run(s, "git push");
+run(s, "pipeline");
+fixedPassing(s, "revert plus the reviewed policy");
+
+// Dependabot: merging everything takes the breaking major; the safe path merges only the fix.
+s = fresh("dependabot");
+assert.match(run(s, "gh pr list"), /#101[\s\S]*#104/);
+run(s, "gh pr merge 101 --squash");
+run(s, "gh pr merge 104 --squash");
+assert.ok(!won(s), "plotkit 2.0 must not be merged");
+s = fresh("dependabot");
+assert.match(run(s, "gh pr merge 101 --squash"), /Squashed and merged/);
+assert.match(run(s, "gh pr merge 101"), /already merged/);
+s.files[".github/workflows/dependabot-automerge.yml"] = `name: dependabot-automerge
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  automerge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+      - name: Auto-merge patch and minor updates once checks pass
+        if: steps.meta.outputs.update-type != 'version-update:semver-major'
+        env:
+          PR_URL: \${{ github.event.pull_request.html_url }}
+          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --auto --squash "$PR_URL"
+`;
+ship(s, "Safe auto-merge");
+fixedPassing(s, "merging the fix and a narrow auto-merge");
+
+// VEX: ignore-unfixed is caught; a VEX statement without a justification is not applied.
+const VEX = (extra) => JSON.stringify({ "@context": "https://openvex.dev/ns/v0.2.0", "@id": "https://fernleaf.example/vex/2026-0140", author: "security@fernleaf.example", timestamp: "2026-10-30T09:00:00Z", version: 1,
+  statements: [{ vulnerability: { name: "PRACTICE-2026-0140" }, products: [{ "@id": "pkg:oci/api?repository_url=ghcr.io/fernleaf/api" }], status: "not_affected", ...extra }] }, null, 2);
+s = fresh("vex");
+assert.match(run(s, "pipeline"), /Image scan\s+1 blocking[\s\S]*PRACTICE-2026-0140/);
+edit(s, ".github/workflows/ci.yml", "trivy image --pkg-types os", "trivy image --ignore-unfixed --pkg-types os");
+assert.match(ship(s, "Ignore unfixed"), /loosened the image scan/);
+run(s, "git checkout HEAD~1 -- .github/workflows/ci.yml");
+s.files["vex.openvex.json"] = VEX({});
+run(s, "git add vex.openvex.json");
+edit(s, ".github/workflows/ci.yml", "trivy image --pkg-types os", "trivy image --vex vex.openvex.json --pkg-types os");
+assert.match(ship(s, "VEX without a reason"), /Image scan\s+1 blocking/);
+s.files["vex.openvex.json"] = VEX({ justification: "vulnerable_code_not_in_execute_path", impact_statement: "The API never renders fonts; libpractice-glyphs2 is only a dependency of the base image." });
+ship(s, "VEX: not affected");
+assert.match(run(s, `trivy image --vex vex.openvex.json ${s.cluster.image}`), /Filtered out the detected vulnerability/);
+fixedPassing(s, "a justified OpenVEX statement");
+
+// Tag mutability: fixing the deploy line alone leaves digest pinning off.
+s = fresh("tag-mutability");
+run(s, "sed -i 's/api:stable/api:${{ github.sha }}/' .github/workflows/ci.yml");
+ship(s, "Deploy the commit");
+assert.ok(!won(s), "the policy still ignores digests");
+run(s, "sed -i '/Digest: false/d' k8s/verify-images.yaml");
+ship(s, "Pin to the verified digest");
+fixedPassing(s, "digest verification and per-commit deploys");
 
 // Shell plumbing.
 s = new Sim();

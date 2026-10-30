@@ -222,7 +222,10 @@
         instances: {},
         trail: []
       };
-      this.gh = { secrets: { PIP_TOKEN: "PRACTICE-pip-Tk4nR8wZ3s" }, runs: [], deletedRuns: [] };
+      this.gh = { secrets: { PIP_TOKEN: "PRACTICE-pip-Tk4nR8wZ3s" }, runs: [], deletedRuns: [], prs: [],
+        protection: { reviews: 1, codeOwners: true, dismissStale: true, enforceAdmins: true, forcePushes: false, deletions: false, checks: ["scan", "build"] } };
+      // OS findings a scenario adds to every base image.
+      this.extraOsVulns = [];
       this.registry = {};
       this.images = {};
       this.cluster = { image: null, objects: [], applied: false };
@@ -343,7 +346,7 @@
           base = stage.base;
           user = /distroless.*nonroot|:nonroot/.test(x.args) ? "65532" : "root";
           layers.length = 0;
-          osVulns = base.base.vulns.slice();
+          osVulns = base.base.vulns.concat(this.extraOsVulns);
           packages = base.base.packages;
           python = stage.pip;
           upgraded = false;
@@ -575,6 +578,17 @@
       return !!ex.reason && ex.reason.length > 10 && !isNaN(until) && until > NOW && until <= NOW + (pol.maxDays || 90) * DAY && !vuln.fixed && !vuln.malicious;
     }
 
+    // OpenVEX statements that mark a vulnerability not_affected, with a valid justification.
+    vexNotAffected(tree, file) {
+      let doc;
+      try { doc = JSON.parse((tree || this.files)[String(file || "").replace(/^\.\//, "")] || ""); } catch { return []; }
+      const ok = ["component_not_present", "vulnerable_code_not_present", "vulnerable_code_not_in_execute_path", "vulnerable_code_cannot_be_controlled_by_adversary", "inline_mitigations_already_exist"];
+      if (!doc || !/openvex\.dev\/ns/.test(String(doc["@context"] || "")) || !Array.isArray(doc.statements)) return [];
+      return doc.statements.filter((st) => st && st.status === "not_affected" && ok.includes(st.justification) && String(st.impact_statement || "").length > 10 &&
+        Array.isArray(st.products) && st.products.some((p) => /fernleaf\/api|pkg:oci\/api/.test(String((p && p["@id"]) || p))))
+        .map((st) => (st.vulnerability && (st.vulnerability.name || st.vulnerability["@id"])) || "");
+    }
+
     // --- the release gate's own integrity ---
     // Anything that hides findings instead of fixing them. Returns a list of problems.
     tampering(tree) {
@@ -605,6 +619,8 @@
         else if (!f.suppressed.reason) problems.push(`${f.file}:${f.line}: # nosemgrep without a written reason on the line above`);
         else if (f.rule.id !== SAST.sqlFormat.id || !/TABLES|allow/i.test(String(t[f.file]).split("\n").slice(Math.max(0, f.line - 6), f.line).join("\n"))) problems.push(`${f.file}:${f.line}: a real ${f.rule.short} is suppressed, not fixed`);
       }
+      const vexFile = (/--vex[ =](\S+)/.exec(ci) || [])[1];
+      if (vexFile) for (const id of this.vexNotAffected(t, vexFile)) if (D.BASES["python:3.12"].vulns.concat(this.extraOsVulns).some((v) => v[2] === id && v[4])) problems.push(`${vexFile} marks ${id} not_affected although a fix exists`);
       for (const f of this.tfFindings(t)) if (f.skipped) problems.push(`${f.file}: ${f.tool.checkov} is skipped instead of fixed`);
       for (const f of this.kubeLint(t)) if (f.ignored != null) problems.push(`${f.file}: kube-linter's ${f.tool.kubelinter} check is ignored by an annotation`);
       const dep = this.depFindings(t);

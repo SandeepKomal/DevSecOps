@@ -77,7 +77,7 @@
   // --- hero: findings moving left -----------------------------------------------
   function signature() {
     const stages = [["Commit", "minutes to fix"], ["Build", "an hour"], ["Deploy", "a day"], ["Production", "an incident"]];
-    const finds = [["crit", "AWS key in app/storage.py", 0], ["high", "openssl CVE in base image", 1], ["med", "Unpinned action in ci.yml", 0], ["high", "Public S3 bucket in Terraform", 1], ["crit", "SQL injection in search()", 0]];
+    const finds = [["crit", "AWS key in app/storage.py", 0], ["high", "CVE in a base image package", 1], ["med", "Unpinned action in ci.yml", 0], ["high", "Public S3 bucket in Terraform", 1], ["crit", "SQL injection in search()", 0]];
     const lanes = stages.map(([s, c]) => h("div.lane", null, h("h3", null, s), h("span.cost", null, c)));
     const cost = h("b.bad", null, "five findings reach production");
     const draw = (left) => {
