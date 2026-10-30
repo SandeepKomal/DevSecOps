@@ -1,0 +1,14 @@
+# gitleaks configuration: the default rules, plus an allowlist for the
+# learning site's practice data. The playground simulates leaked keys on
+# purpose; every one is invented and contains PRACTICE, so it cannot be a
+# real credential. Real secrets never match these patterns.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Invented practice credentials in site/ (playground scenarios and examples)"
+regexes = [
+  '''AKIAPRACTICE[A-Z2-7]{8}''',
+  '''ghp_PRACTICE[A-Za-z0-9]+''',
+  '''PRACTICE[-/][A-Za-z0-9/+=_-]+''',
+]

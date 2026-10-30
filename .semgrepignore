@@ -1,0 +1,8 @@
+# Semgrep ignore file. The learning site's practice data simulates leaked
+# credentials and vulnerable code on purpose (all invented, marked PRACTICE),
+# so the secrets ruleset would report the lessons themselves.
+site/scenarios.js
+site/repo.js
+site/data.js
+site/xray-explain.js
+tests/
