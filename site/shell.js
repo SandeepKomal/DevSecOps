@@ -297,6 +297,20 @@
         if (sub === "checkout" && !out.length) out.push(L(`Updated ${paths.length} path${paths.length === 1 ? "" : "s"} from ${short(sim.commits.find((c) => c.tree === tree) ? sim.commits.find((c) => c.tree === tree).sha : hash(src))}`));
         return out;
       }
+      case "revert": {
+        const i = sim.commits.findIndex((c) => pos[0] && c.sha.startsWith(pos[0]));
+        if (i < 1) return [L(`fatal: bad revision '${pos[0] || ""}'`, "warn")];
+        const c = sim.commits[i];
+        const parent = sim.commits[i - 1].tree;
+        const before = { ...sim.head().tree };
+        for (const p of Object.keys({ ...c.tree, ...parent })) {
+          if (c.tree[p] === parent[p]) continue;
+          if (parent[p] == null) { delete sim.index[p]; delete sim.files[p]; } else { sim.index[p] = parent[p]; sim.files[p] = parent[p]; }
+        }
+        const msg = `Revert "${c.msg}"`;
+        const sha = sim.commitTree(msg, { ...sim.index });
+        return [L(`[main ${short(sha)}] ${msg}`), L(" " + commitStat(before, sim.index))];
+      }
       case "rev-parse": return [L(sim.headSha())];
       case "remote": {
         if (pos[0] === "add") {
@@ -609,7 +623,10 @@ Use "gitleaks [command] --help" for more information about a command.`);
       const types = String(opt["pkg-types"] || "os,library").split(",");
       if (scanners.includes("vuln")) {
         if (types.includes("os")) {
-          const rows = trivyFilter(img.osVulns.map(([pkg, version, id, sev, fixed, title]) => ({ pkg, version, id, sev, fixed, title })), opt);
+          const vexed = opt.vex ? sim.vexNotAffected(sim.files, opt.vex) : [];
+          if (opt.vex && sim.files[String(opt.vex).replace(/^\.\//, "")] == null) return [tlog("FATAL", `Fatal error\tflag error: VEX error: unable to load VEX: open ${opt.vex}: no such file or directory`)];
+          const rows = trivyFilter(img.osVulns.filter((v) => !vexed.includes(v[2])).map(([pkg, version, id, sev, fixed, title]) => ({ pkg, version, id, sev, fixed, title })), opt);
+          if (vexed.length) out.push(tlog("INFO", `[vex] Filtered out the detected vulnerability\tVEX format="OpenVEX" vulnerability-id="${vexed.join(",")}" status="not_affected"`));
           out.push(...trivyVulnSection(`${ref} (${img.os})`, "", rows).map((l, i) => (i === 1 ? L(`${ref} (${img.os})`, "head") : l)));
           const t = D.BASES[img.base].totals;
           if (!opt.severity && img.base === "python:3.12") out.push(L(`(${Object.values(t).reduce((a, b) => a + b, 0) - rows.length} more low and medium findings not shown)`, "dim"));
@@ -656,7 +673,7 @@ Use "gitleaks [command] --help" for more information about a command.`);
       if (!fs.length) continue;
       out.push(L(""), L(`${p} (${kind})`, "head"), L("=".repeat(p.length + kind.length + 3), "head"), L(`Tests: ${fs.length + 18} (SUCCESSES: 18, FAILURES: ${fs.length})`), L(`Failures: ${fs.length} (${sevCount(fs)})`, "warn"));
       for (const f of fs) {
-        out.push(L(""), L(`${f.tool.trivy} (${f.sev}): ${f.title}`, "warn"), L("════════════════════════════════════════"), L(f.fix, "dim"), L(""), L(`See https://avd.aquasec.com/misconfig/${f.tool.trivy.toLowerCase()}`, "dim"),
+        out.push(L(""), L(`${f.tool.trivy} (${f.sev}): ${f.title}`, "warn"), L("════════════════════════════════════════"), L(f.fix, "dim"), L(""), L(/^PRACTICE-/.test(f.tool.trivy) ? "(practice rule ID: stands in for Trivy's own ID for this check)" : `See https://avd.aquasec.com/misconfig/${f.tool.trivy.toLowerCase()}`, "dim"),
           L("────────────────────────────────────────"), L(` ${p}:${f.line}`), L("────────────────────────────────────────"), L(`  ${String(f.line).padStart(3)} │ ${(sim.files[p].split("\n")[f.line - 1] || "").trim()}`, "row"));
       }
     }
@@ -900,7 +917,7 @@ Pushing signature to: ghcr.io/fernleaf/api`);
     const perms = !wf.some((f) => f.id === "excessive-permissions" || f.id === "missing-permissions");
     const dangerous = !wf.some((f) => f.id === "dangerous-triggers" || f.id === "template-injection");
     return [
-      [10, "Binary-Artifacts", "no binaries found in the repo"], [8, "Branch-Protection", "branch protection is not maximal on development and all release branches"],
+      [10, "Binary-Artifacts", "no binaries found in the repo"], branchScore(sim),
       [10, "CI-Tests", "18 out of 18 merged PRs checked by a CI test -- score normalized to 10"], [10, "Code-Review", "all changesets reviewed"],
       [dangerous ? 10 : 0, "Dangerous-Workflow", dangerous ? "no dangerous workflow patterns detected" : "dangerous workflow patterns detected"],
       [10, "Dependency-Update-Tool", "update tool detected"], [pinned ? 10 : 4, "Pinned-Dependencies", pinned ? "all dependencies are pinned" : "dependency not pinned by hash detected -- score normalized to 4"],
@@ -908,6 +925,11 @@ Pushing signature to: ghcr.io/fernleaf/api`);
       [perms ? 10 : 0, "Token-Permissions", perms ? "GitHub workflow tokens follow principle of least privilege" : "detected GitHub workflow tokens with excessive permissions"],
       [10, "Vulnerabilities", "0 existing vulnerabilities detected"]
     ];
+  }
+  function branchScore(sim) {
+    const p = sim.gh.protection;
+    const ok = p.reviews >= 1 && p.enforceAdmins && !p.forcePushes && p.checks.length > 0;
+    return ok ? [8, "Branch-Protection", "branch protection is not maximal on development and all release branches"] : [0, "Branch-Protection", "branch protection not enabled on development/release branches"];
   }
   function scorecardScore(sim, tree) {
     const w = { "Dangerous-Workflow": 10, "Branch-Protection": 7.5, "Code-Review": 7.5, "Token-Permissions": 7.5, "Binary-Artifacts": 7.5, "Pinned-Dependencies": 5, "Vulnerabilities": 7.5, "SAST": 5, "CI-Tests": 2.5, "Security-Policy": 5, "Dependency-Update-Tool": 7.5 };
@@ -1209,6 +1231,8 @@ Pushing signature to: ghcr.io/fernleaf/api`);
     const [area, op] = args;
     const { pos, opt } = parseArgs(args.slice(2));
     if (area === "workflow" && op === "run") return pipeline(sim);
+    if (area === "api") return ghApi(sim, args.slice(1));
+    if (area === "pr") return ghPr(sim, op, pos, opt);
     if (area === "secret") {
       if (op === "list") return plain(["NAME", "UPDATED"], Object.keys(sim.gh.secrets).sort().map((k) => [k, k === "PIP_TOKEN" && sim.gh.secrets[k] !== "PRACTICE-pip-Tk4nR8wZ3s" ? "less than a minute ago" : "about 4 months ago"]));
       if (op === "set") {
@@ -1240,6 +1264,59 @@ Pushing signature to: ghcr.io/fernleaf/api`);
       }
     }
     return [L("Supported here: gh workflow run ci.yml · gh run list · gh run view <id> --log · gh run delete <id> · gh secret list|set|delete", "dim")];
+  }
+
+  // Branch protection through the REST API, as gh api prints it.
+  function ghApi(sim, args) {
+    const { pos, opt } = parseArgs(args);
+    const method = String(opt.X || opt.method || "GET").toUpperCase();
+    if (!/^repos\/fernleaf\/api\/branches\/main\/protection$/.test(String(pos[0] || "").replace(/^\//, ""))) return [L("Supported here: gh api repos/fernleaf/api/branches/main/protection [-X PUT --input FILE]", "dim")];
+    if (method === "PUT") {
+      const file = sim.files[String(opt.input || "").replace(/^\.\//, "")];
+      if (file == null) return [L(`open ${opt.input}: no such file or directory`, "warn")];
+      let body;
+      try { body = JSON.parse(file); } catch { return [L("gh: Problems parsing JSON (HTTP 400)", "warn")]; }
+      if (!body || !("required_status_checks" in body) || !("enforce_admins" in body) || !("required_pull_request_reviews" in body) || !("restrictions" in body)) return [L("gh: Invalid request.", "warn"), L("", ""), L("No subschema in \"anyOf\" matched. (HTTP 422)", "warn")];
+      const r = body.required_pull_request_reviews || {};
+      sim.gh.protection = { reviews: Number(r.required_approving_review_count) || 0, codeOwners: !!r.require_code_owner_reviews, dismissStale: !!r.dismiss_stale_reviews,
+        enforceAdmins: body.enforce_admins === true, forcePushes: body.allow_force_pushes === true, deletions: body.allow_deletions === true,
+        checks: body.required_status_checks && Array.isArray(body.required_status_checks.contexts) ? body.required_status_checks.contexts.map(String) : [] };
+    }
+    const q = sim.gh.protection;
+    const url = "https://api.github.com/repos/fernleaf/api/branches/main/protection";
+    return lines(JSON.stringify({ url,
+      required_status_checks: { url: url + "/required_status_checks", strict: true, contexts: q.checks },
+      ...(q.reviews ? { required_pull_request_reviews: { url: url + "/required_pull_request_reviews", dismiss_stale_reviews: q.dismissStale, require_code_owner_reviews: q.codeOwners, required_approving_review_count: q.reviews } } : {}),
+      enforce_admins: { url: url + "/enforce_admins", enabled: q.enforceAdmins }, allow_force_pushes: { enabled: q.forcePushes }, allow_deletions: { enabled: q.deletions } }, null, 2));
+  }
+
+  // Dependabot pull requests: list, view, merge.
+  function ghPr(sim, op, pos, opt) {
+    const prs = sim.gh.prs;
+    if (op === "list") {
+      const open = prs.filter((x) => x.state === "OPEN");
+      if (!open.length) return [L("no open pull requests in fernleaf/api")];
+      return plain(["ID", "TITLE", "BRANCH"], open.map((x) => [`#${x.n}`, x.title, `dependabot/pip/${x.pkg}-${x.to}`]));
+    }
+    const pr = prs.find((x) => String(x.n) === String(pos[0]).replace(/^#/, ""));
+    if (!pr) return [L(`GraphQL: Could not resolve to a PullRequest with the number of ${pos[0] || ""}. (repository.pullRequest)`, "warn")];
+    if (op === "view") return [L(pr.title, "head"), L(`${pr.state === "OPEN" ? "Open" : "Merged"} • dependabot wants to merge 1 commit into main`), L(""), L(pr.body)];
+    if (op === "merge") {
+      if (pr.state !== "OPEN") return [L(`X Pull request fernleaf/api#${pr.n} was already merged`, "warn")];
+      const pin = new RegExp("^" + pr.pkg + "([=<>!~].*)?$", "m");
+      if (pin.test(sim.files["requirements.in"])) sim.files["requirements.in"] = sim.files["requirements.in"].replace(pin, `${pr.pkg}==${pr.to}`);
+      const input = S.parseReqs(sim.files["requirements.in"]);
+      const res = S.resolve(input, S.parseReqs(sim.files["requirements.txt"]).pins, new Map([[pr.pkg, "==" + pr.to]]));
+      if (res.error) return res.error.map((t) => L(t, "warn"));
+      sim.files["requirements.txt"] = S.lockText(res, "pip-compile requirements.in", false, input);
+      sim.index["requirements.in"] = sim.files["requirements.in"];
+      sim.index["requirements.txt"] = sim.files["requirements.txt"];
+      sim.commitTree(`${pr.title} (#${pr.n})`, { ...sim.index });
+      sim.remote = { commits: sim.commits.slice() };
+      pr.state = "MERGED";
+      return [L(`✓ Squashed and merged pull request fernleaf/api#${pr.n} (${pr.title})`, "ok"), L("Run git log --oneline to see it on main; the pipeline runs on it next.", "dim")];
+    }
+    return [L("Supported here: gh pr list · gh pr view <n> · gh pr merge <n> --squash", "dim")];
   }
 
   // --- the pipeline -------------------------------------------------------------------------------
@@ -1345,7 +1422,9 @@ Pushing signature to: ghcr.io/fernleaf/api`);
       const want = sevs ? sevs[1].split(",") : ["UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"];
       const unfixed = /--ignore-unfixed/.test(stepText(scanStep));
       const osOnly = /--pkg-types[ =]os\b/.test(stepText(scanStep));
-      const vulns = img.osVulns.filter((v) => want.includes(v[3]) && (!unfixed || v[4])).map((v) => `${v[0]} ${v[1]}: ${v[2]} (${v[3]}${v[4] ? `, fixed in ${v[4]}` : ", no fix"})`);
+      const vexFile = (/--vex[ =](\S+)/.exec(stepText(scanStep)) || [])[1];
+      const vexed = vexFile ? sim.vexNotAffected(tree, vexFile) : [];
+      const vulns = img.osVulns.filter((v) => want.includes(v[3]) && (!unfixed || v[4]) && !vexed.includes(v[2])).map((v) => `${v[0]} ${v[1]}: ${v[2]} (${v[3]}${v[4] ? `, fixed in ${v[4]}` : ", no fix"})`);
       const libs = osOnly ? [] : sim.vulnsIn(img.pins).filter((v) => want.includes(v.sev)).map((v) => `${v.pkg} ${v.version}: ${v.id}`);
       const secrets = Object.entries(img.files).flatMap(([p, t]) => R.findSecrets(t).map((h) => `secret in image: ${p}:${h.line} (${h.rule})`));
       gateStep("build", /trivy image/, "Image scan", [...secrets, ...vulns, ...libs], `trivy: no HIGH or CRITICAL findings (${img.packages} OS packages)`);

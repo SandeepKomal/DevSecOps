@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
   <title>DevSecOps problems and fixes · DevSecOps Quest</title>
-  <meta name="description" content="45 DevSecOps errors and scanner findings with their exact text, cause, how to confirm, the fix and how to prevent it: gitleaks, Trivy, Semgrep, Checkov, cosign, GitHub Actions, Kubernetes and AWS.">
+  <meta name="description" content="51 DevSecOps errors and scanner findings with their exact text, cause, how to confirm, the fix and how to prevent it: gitleaks, Trivy, Semgrep, Checkov, cosign, GitHub Actions, Kubernetes and AWS.">
   <meta property="og:type" content="article">
   <meta property="og:title" content="DevSecOps problems and fixes">
   <meta property="og:description" content="Scanner findings and pipeline errors, from symptom to fix.">
@@ -18,15 +18,15 @@
 <main class="wrap problems">
   <p><a href="index.html">DevSecOps Quest</a> · <a href="index.html#doctor">Searchable version</a></p>
   <h1>DevSecOps problems and fixes</h1>
-  <p class="lede">45 errors and scanner findings: the exact text, what it means, how to confirm it, how to fix it and how to stop it coming back. Practice examples use invented IDs such as PRACTICE-2026-0001.</p>
+  <p class="lede">51 errors and scanner findings: the exact text, what it means, how to confirm it, how to fix it and how to stop it coming back. Practice examples use invented IDs such as PRACTICE-2026-0001.</p>
   <nav aria-label="Groups"><ul>
-    <li><a href="#secrets">Secrets</a> (4)</li>
-    <li><a href="#dependencies">Dependencies</a> (6)</li>
+    <li><a href="#secrets">Secrets</a> (5)</li>
+    <li><a href="#dependencies">Dependencies</a> (7)</li>
     <li><a href="#code">Code</a> (3)</li>
-    <li><a href="#containers">Containers</a> (4)</li>
-    <li><a href="#infrastructure-as-code">Infrastructure as code</a> (4)</li>
+    <li><a href="#containers">Containers</a> (5)</li>
+    <li><a href="#infrastructure-as-code">Infrastructure as code</a> (5)</li>
     <li><a href="#kubernetes">Kubernetes</a> (4)</li>
-    <li><a href="#ci-cd-and-supply-chain">CI/CD and supply chain</a> (14)</li>
+    <li><a href="#ci-cd-and-supply-chain">CI/CD and supply chain</a> (16)</li>
     <li><a href="#git-history">Git history</a> (2)</li>
     <li><a href="#runtime-and-response">Runtime and response</a> (4)</li>
   </ul></nav>
@@ -115,6 +115,27 @@ trivy image &lt;image&gt;</code></pre>
     <h4>Prevent it</h4>
     <p>.dockerignore for credential files; image secret scanning in CI.</p>
     <p>Practise it: <a href="index.html#play/docker-layer">Secret in a Docker layer</a>, <a href="index.html#play/build-args">Secret passed as a build argument</a> · <a href="index.html#fix/secret-in-layer">Open in the site</a></p>
+  </section>
+  <section id="tfstate-secrets">
+    <h3>Passwords in terraform.tfstate</h3>
+    <p class="tag">gitleaks, Terraform</p>
+    <h4>The error</h4>
+    <pre><code>RuleID:      generic-api-key
+File:        terraform/terraform.tfstate</code></pre>
+    <h4>What it means</h4>
+    <p>Terraform state stores every attribute in plain text, including passwords set from variables. A local state file was committed.</p>
+    <h4>Confirm it</h4>
+    <pre><code>git ls-files '*.tfstate*'
+grep -n password terraform/terraform.tfstate</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Rotate the secrets it holds.</li>
+      <li>Move state to an encrypted, access-controlled backend (backend &quot;s3&quot; with encrypt = true and locking).</li>
+      <li>git rm --cached the state file, add *.tfstate* to .gitignore, purge it from history.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>A remote backend from day one; managed passwords (manage_master_user_password) so state never holds them.</p>
+    <p>Practise it: <a href="index.html#play/tf-state">Secrets in Terraform state</a> · <a href="index.html#fix/tfstate-secrets">Open in the site</a></p>
   </section>
   <h2 id="dependencies">Dependencies</h2>
   <section id="critical-cve-fix">
@@ -228,6 +249,27 @@ pip install -r requirements.txt   # Looking in indexes: ...</code></pre>
     <h4>Prevent it</h4>
     <p>CI installs only from the lock file.</p>
     <p>Practise it: <a href="index.html#play/unpinned-deps">Unpinned dependencies</a> · <a href="index.html#fix/unpinned-dependency">Open in the site</a></p>
+  </section>
+  <section id="dependabot-backlog">
+    <h3>Dependabot pull requests pile up, or merge blindly</h3>
+    <p class="tag">Dependabot, gh</p>
+    <h4>The error</h4>
+    <pre><code>#101  Bump imgresize from 2.1.0 to 2.1.4
+#104  Bump plotkit from 1.6.0 to 2.0.0</code></pre>
+    <h4>What it means</h4>
+    <p>Nobody triages bot pull requests, or an auto-merge workflow merges everything, majors included, before checks finish.</p>
+    <h4>Confirm it</h4>
+    <pre><code>gh pr list --author app/dependabot
+cat .github/workflows/dependabot-automerge.yml</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Merge security fixes first.</li>
+      <li>Auto-merge only dependabot[bot], only patch and minor (dependabot/fetch-metadata update-type), with gh pr merge --auto so required checks gate it.</li>
+      <li>Leave majors for a person.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Group updates, schedule them, and protect main with required checks.</p>
+    <p>Practise it: <a href="index.html#play/dependabot">Dependabot triage and safe auto-merge</a> · <a href="index.html#fix/dependabot-backlog">Open in the site</a></p>
   </section>
   <h2 id="code">Code</h2>
   <section id="sast-sql">
@@ -360,6 +402,25 @@ grep FROM Dockerfile</code></pre>
     <p>No :latest in Dockerfiles; DS001 / CKV_DOCKER_7 in CI.</p>
     <p>Practise it: <a href="index.html#play/latest-tag">Base image on :latest</a> · <a href="index.html#fix/wheel-build">Open in the site</a></p>
   </section>
+  <section id="vex-not-affected">
+    <h3>A CVE that does not affect you blocks the release</h3>
+    <p class="tag">trivy, OpenVEX</p>
+    <h4>The error</h4>
+    <pre><code>│ libpractice-glyphs2 │ PRACTICE-2026-0140 │ HIGH │ affected │ 2.13.1-1 │  │</code></pre>
+    <h4>What it means</h4>
+    <p>A scanner matches package versions, not reachability. The vulnerable code may never run in your product.</p>
+    <h4>Confirm it</h4>
+    <pre><code>trivy image --severity HIGH,CRITICAL &lt;image&gt;
+Show that nothing in the product calls the vulnerable code.</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Write an OpenVEX statement: status not_affected, a justification such as vulnerable_code_not_in_execute_path, and an impact_statement.</li>
+      <li>Pass it to the scanner: trivy image --vex vex.openvex.json &lt;image&gt;.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Review VEX statements like code; revisit them when the product changes.</p>
+    <p>Practise it: <a href="index.html#play/vex">VEX for a non-exploitable CVE</a> · <a href="index.html#fix/vex-not-affected">Open in the site</a></p>
+  </section>
   <h2 id="infrastructure-as-code">Infrastructure as code</h2>
   <section id="public-bucket">
     <h3>CKV_AWS_20: S3 bucket allows public read</h3>
@@ -433,6 +494,25 @@ trivy config terraform</code></pre>
     <h4>Prevent it</h4>
     <p>Review IAM changes like code; permission boundaries.</p>
     <p>Practise it: <a href="index.html#play/iam-wildcard">IAM policy with * on *</a> · <a href="index.html#fix/iam-wildcard">Open in the site</a></p>
+  </section>
+  <section id="imdsv1">
+    <h3>CKV_AWS_79: instance metadata service v1 enabled</h3>
+    <p class="tag">checkov</p>
+    <h4>The error</h4>
+    <pre><code>Check: CKV_AWS_79: &quot;Ensure Instance Metadata Service Version 1 is not enabled&quot;</code></pre>
+    <h4>What it means</h4>
+    <p>http_tokens = &quot;optional&quot; lets a plain GET (for example through an SSRF bug) read the instance role's credentials.</p>
+    <h4>Confirm it</h4>
+    <pre><code>checkov -d terraform
+aws ec2 describe-instances --query 'Reservations[].Instances[].MetadataOptions'</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>metadata_options { http_tokens = &quot;required&quot; } on instances and launch templates.</li>
+      <li>Fix the SSRF itself: allowlist the hosts the app may fetch.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Set the account default to IMDSv2 only.</p>
+    <p>Practise it: <a href="index.html#play/imdsv1">IMDSv1 and an SSRF</a> · <a href="index.html#fix/imdsv1">Open in the site</a></p>
   </section>
   <h2 id="kubernetes">Kubernetes</h2>
   <section id="privileged-pod">
@@ -757,6 +837,47 @@ cosign verify-attestation --type cyclonedx ... &lt;image&gt;</code></pre>
     <h4>Prevent it</h4>
     <p>SBOM and attestation as required CI steps.</p>
     <p>Practise it: <a href="index.html#play/missing-sbom">Missing SBOM for an audit</a> · <a href="index.html#fix/missing-sbom">Open in the site</a></p>
+  </section>
+  <section id="branch-protection-off">
+    <h3>Commits reach main without review</h3>
+    <p class="tag">GitHub, Scorecard</p>
+    <h4>The error</h4>
+    <pre><code>| 0 / 10  | Branch-Protection      | branch protection not enabled on development/release branches |</code></pre>
+    <h4>What it means</h4>
+    <p>Branch protection was relaxed: no required reviews, admins exempt (enforce_admins false) or force pushes allowed.</p>
+    <h4>Confirm it</h4>
+    <pre><code>gh api repos/&lt;owner&gt;/&lt;repo&gt;/branches/main/protection
+git log --oneline origin/main</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Revert unreviewed changes with git revert, keeping the record.</li>
+      <li>Restore the policy: gh api -X PUT repos/&lt;owner&gt;/&lt;repo&gt;/branches/main/protection --input branch-protection.json, with enforce_admins true.</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Keep the policy in code and alert on changes to it (audit log, rulesets).</p>
+    <p>Practise it: <a href="index.html#play/branch-protection">Branch protection bypassed</a> · <a href="index.html#fix/branch-protection-off">Open in the site</a></p>
+  </section>
+  <section id="tag-moved">
+    <h3>A tag was re-pushed and the cluster runs different code</h3>
+    <p class="tag">Kyverno, registry</p>
+    <h4>The error</h4>
+    <pre><code>verifyImages:
+  - imageReferences: [&quot;ghcr.io/fernleaf/*&quot;]
+    mutateDigest: false
+    verifyDigest: false</code></pre>
+    <h4>What it means</h4>
+    <p>Tags are mutable pointers. Without digest pinning, a restart pulls whatever the tag points to now.</p>
+    <h4>Confirm it</h4>
+    <pre><code>kubectl get pods -o jsonpath='{.items[*].status.containerStatuses[*].imageID}'
+cosign triangulate &lt;image&gt;</code></pre>
+    <h4>Fix it</h4>
+    <ol>
+      <li>Deploy by digest or by an immutable per-commit tag.</li>
+      <li>Keep Kyverno's verifyDigest and mutateDigest on (both default to true).</li>
+    </ol>
+    <h4>Prevent it</h4>
+    <p>Immutable tags where the registry supports them (ECR IMMUTABLE).</p>
+    <p>Practise it: <a href="index.html#play/tag-mutability">Mutable tags and digest pinning</a> · <a href="index.html#fix/tag-moved">Open in the site</a></p>
   </section>
   <h2 id="git-history">Git history</h2>
   <section id="filter-repo-fresh">

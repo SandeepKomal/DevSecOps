@@ -8,7 +8,7 @@ and **DevSecOps Quest**, a free learning site built from it: https://sandeepkoma
 `site/` is a static site with no dependencies, trackers or cookies:
 
 - **Path**: fourteen levels from shift-left basics to incident response, each tied to the workflows below, with a hands-on lab.
-- **Playground**: a pipeline simulator in the browser: a practice repository (Python code, dependencies, Dockerfile, Terraform, Kubernetes manifests, CI workflow, git history) and simulated scanners (gitleaks, Semgrep, OSV-Scanner, Trivy, Grype, Syft, cosign, Checkov, kube-linter, conftest, zizmor, Scorecard, ZAP). 43 scenarios from a committed AWS key to a live incident.
+- **Playground**: a pipeline simulator in the browser: a practice repository (Python code, dependencies, Dockerfile, Terraform, Kubernetes manifests, CI workflow, git history) and simulated scanners (gitleaks, Semgrep, OSV-Scanner, Trivy, Grype, Syft, cosign, Checkov, kube-linter, conftest, zizmor, Scorecard, ZAP). 49 scenarios from a committed AWS key to a live incident.
 - **Pipeline X-ray**: paste a workflow, Dockerfile, Terraform or Kubernetes manifest; every line is explained and security issues are flagged.
 - **Troubleshoot**: scanner findings and error messages with cause, confirmation, fix and prevention; also as a plain page, `site/problems.html`.
 - **Quiz**, **Cheat sheet** and an interactive **DevSecOps architecture** of the secure SDLC.

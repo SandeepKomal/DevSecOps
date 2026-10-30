@@ -317,12 +317,12 @@
   // Patterns in the style of gitleaks' default rules.
   const SECRET_RULES = [
     { id: "aws-access-token", re: /\b((?:AKIA|ASIA)[A-Z2-7]{16})\b/, what: "AWS access key" },
-    { id: "aws-secret-key", re: /(?:aws_secret_access_key|AWS_SECRET_ACCESS_KEY|aws_secret)\S*\s*[=:]\s*["']?([A-Za-z0-9/+=]{40})/, what: "AWS secret access key" },
+    { id: "generic-api-key", re: /(?:aws_secret_access_key|AWS_SECRET_ACCESS_KEY|aws_secret)\S*\s*[=:]\s*["']?([A-Za-z0-9/+=]{40})/, what: "AWS secret access key" },
     { id: "github-pat", re: /\b(ghp_[A-Za-z0-9]{36})\b/, what: "GitHub personal access token" },
     { id: "private-key", re: /(-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)/, what: "private key" },
-    { id: "url-credentials", re: /https?:\/\/[^\s:/@]+:([^\s:/@$]{8,})@/, what: "password in a URL" },
-    { id: "generic-password", re: /(?:password|passwd|secret|token)\w*["']?\s*[:=]\s*["']([^"'\s$]{8,})["']/i, what: "hard-coded password or token" },
-    { id: "generic-password", re: /^\s*(?:export\s+)?[A-Z0-9_]*(?:PASSWORD|SECRET|TOKEN)[A-Z0-9_]*=([^\s$"'{}]{8,})\s*$/, what: "hard-coded password or token" }
+    { id: "generic-api-key", re: /https?:\/\/[^\s:/@]+:([^\s:/@$]{8,})@/, what: "password in a URL" },
+    { id: "generic-api-key", re: /(?:password|passwd|secret|token)\w*["']?\s*[:=]\s*["']([^"'\s$]{8,})["']/i, what: "hard-coded password or token" },
+    { id: "generic-api-key", re: /^\s*(?:export\s+)?[A-Z0-9_]*(?:PASSWORD|SECRET|TOKEN)[A-Z0-9_]*=([^\s$"'{}]{8,})\s*$/, what: "hard-coded password or token" }
   ];
   function entropy(s) {
     const n = {};
@@ -335,7 +335,7 @@
       for (const r of SECRET_RULES) {
         const m = r.re.exec(line);
         // A generic match must look random; placeholders and redaction markers do not.
-        if (m && (r.id !== "generic-password" || entropy(m[1]) >= 3)) { hits.push({ rule: r.id, what: r.what, line: i + 1, secret: m[1], text: line.trim() }); break; }
+        if (m && (r.id !== "generic-api-key" || entropy(m[1]) >= 3)) { hits.push({ rule: r.id, what: r.what, line: i + 1, secret: m[1], text: line.trim() }); break; }
       }
     });
     return hits;
@@ -344,6 +344,8 @@
   // --- Checks ---------------------------------------------------------------------
 
   // A finding: { id, cat, sev, title, line, fix, tool: {checkov, trivy, kubelinter, zizmor} }.
+  // Trivy's own IDs for the AWS checks are not reproduced here: PRACTICE-AWS-nn
+  // stands in for them, so no output is presented as a real rule ID that could be wrong.
   const SEV = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
   const f = (rule, line, extra) => ({ ...rule, line, ...extra });
 
@@ -396,17 +398,18 @@
   }
 
   const TF = {
-    s3Acl: { id: "CKV_AWS_20", cat: "IaC misconfiguration", sev: "CRITICAL", title: "S3 bucket ACL allows public read access", fix: "Set acl = \"private\" (or remove the ACL) and block public access.", tool: { checkov: "CKV_AWS_20", trivy: "AVD-AWS-0092" } },
-    s3Block: { id: "CKV_AWS_53", cat: "IaC misconfiguration", sev: "HIGH", title: "S3 bucket does not block public access", fix: "aws_s3_bucket_public_access_block with block_public_acls, block_public_policy, ignore_public_acls and restrict_public_buckets all true.", tool: { checkov: "CKV_AWS_53", trivy: "AVD-AWS-0086" } },
-    sshOpen: { id: "CKV_AWS_24", cat: "IaC misconfiguration", sev: "CRITICAL", title: "Security group allows SSH (port 22) from 0.0.0.0/0", fix: "Allow only your VPN or bastion range, or drop SSH and use SSM Session Manager.", tool: { checkov: "CKV_AWS_24", trivy: "AVD-AWS-0107" } },
-    rdpOpen: { id: "CKV_AWS_25", cat: "IaC misconfiguration", sev: "CRITICAL", title: "Security group allows RDP (port 3389) from 0.0.0.0/0", fix: "Restrict the source range.", tool: { checkov: "CKV_AWS_25", trivy: "AVD-AWS-0107" } },
-    ebs: { id: "CKV_AWS_3", cat: "IaC misconfiguration", sev: "HIGH", title: "EBS volume is not encrypted", fix: "encrypted = true (and a kms_key_id for a customer-managed key).", tool: { checkov: "CKV_AWS_3", trivy: "AVD-AWS-0026" } },
-    rds: { id: "CKV_AWS_16", cat: "IaC misconfiguration", sev: "HIGH", title: "RDS instance storage is not encrypted", fix: "storage_encrypted = true. On an existing database this replaces it: snapshot, copy the snapshot encrypted, restore.", tool: { checkov: "CKV_AWS_16", trivy: "AVD-AWS-0080" } },
-    rdsPublic: { id: "CKV_AWS_17", cat: "IaC misconfiguration", sev: "CRITICAL", title: "RDS instance is publicly accessible", fix: "publicly_accessible = false; reach it from the app's subnets only.", tool: { checkov: "CKV_AWS_17", trivy: "AVD-AWS-0082" } },
-    iamStar: { id: "CKV_AWS_62", cat: "least privilege", sev: "CRITICAL", title: "IAM policy allows \"*\" actions on \"*\" resources", fix: "List the actions the app needs (s3:PutObject) on the resources it needs (the bucket ARN).", tool: { checkov: "CKV_AWS_62", trivy: "AVD-AWS-0057" } },
-    iamWild: { id: "AVD-AWS-0057", cat: "least privilege", sev: "HIGH", title: "IAM policy uses a wildcard action or resource", fix: "Name the actions and resources the role needs.", tool: { trivy: "AVD-AWS-0057" } },
-    trailRegions: { id: "CKV_AWS_67", cat: "IaC misconfiguration", sev: "HIGH", title: "CloudTrail is not enabled in all regions", fix: "is_multi_region_trail = true, so activity in any region is logged.", tool: { checkov: "CKV_AWS_67", trivy: "AVD-AWS-0014" } },
-    trailValidation: { id: "CKV_AWS_36", cat: "IaC misconfiguration", sev: "MEDIUM", title: "CloudTrail log file validation is off", fix: "enable_log_file_validation = true, so tampering with logs can be detected.", tool: { checkov: "CKV_AWS_36", trivy: "AVD-AWS-0016" } },
+    s3Acl: { id: "CKV_AWS_20", cat: "IaC misconfiguration", sev: "CRITICAL", title: "S3 bucket ACL allows public read access", fix: "Set acl = \"private\" (or remove the ACL) and block public access.", tool: { checkov: "CKV_AWS_20", trivy: "PRACTICE-AWS-01" } },
+    s3Block: { id: "CKV_AWS_53", cat: "IaC misconfiguration", sev: "HIGH", title: "S3 bucket does not block public access", fix: "aws_s3_bucket_public_access_block with block_public_acls, block_public_policy, ignore_public_acls and restrict_public_buckets all true.", tool: { checkov: "CKV_AWS_53", trivy: "PRACTICE-AWS-02" } },
+    sshOpen: { id: "CKV_AWS_24", cat: "IaC misconfiguration", sev: "CRITICAL", title: "Security group allows SSH (port 22) from 0.0.0.0/0", fix: "Allow only your VPN or bastion range, or drop SSH and use SSM Session Manager.", tool: { checkov: "CKV_AWS_24", trivy: "PRACTICE-AWS-03" } },
+    rdpOpen: { id: "CKV_AWS_25", cat: "IaC misconfiguration", sev: "CRITICAL", title: "Security group allows RDP (port 3389) from 0.0.0.0/0", fix: "Restrict the source range.", tool: { checkov: "CKV_AWS_25", trivy: "PRACTICE-AWS-03" } },
+    ebs: { id: "CKV_AWS_3", cat: "IaC misconfiguration", sev: "HIGH", title: "EBS volume is not encrypted", fix: "encrypted = true (and a kms_key_id for a customer-managed key).", tool: { checkov: "CKV_AWS_3", trivy: "PRACTICE-AWS-04" } },
+    rds: { id: "CKV_AWS_16", cat: "IaC misconfiguration", sev: "HIGH", title: "RDS instance storage is not encrypted", fix: "storage_encrypted = true. On an existing database this replaces it: snapshot, copy the snapshot encrypted, restore.", tool: { checkov: "CKV_AWS_16", trivy: "PRACTICE-AWS-05" } },
+    rdsPublic: { id: "CKV_AWS_17", cat: "IaC misconfiguration", sev: "CRITICAL", title: "RDS instance is publicly accessible", fix: "publicly_accessible = false; reach it from the app's subnets only.", tool: { checkov: "CKV_AWS_17", trivy: "PRACTICE-AWS-06" } },
+    iamStar: { id: "CKV_AWS_62", cat: "least privilege", sev: "CRITICAL", title: "IAM policy allows \"*\" actions on \"*\" resources", fix: "List the actions the app needs (s3:PutObject) on the resources it needs (the bucket ARN).", tool: { checkov: "CKV_AWS_62", trivy: "PRACTICE-AWS-07" } },
+    iamWild: { id: "PRACTICE-AWS-07", cat: "least privilege", sev: "HIGH", title: "IAM policy uses a wildcard action or resource", fix: "Name the actions and resources the role needs.", tool: { trivy: "PRACTICE-AWS-07" } },
+    trailRegions: { id: "CKV_AWS_67", cat: "IaC misconfiguration", sev: "HIGH", title: "CloudTrail is not enabled in all regions", fix: "is_multi_region_trail = true, so activity in any region is logged.", tool: { checkov: "CKV_AWS_67", trivy: "PRACTICE-AWS-08" } },
+    trailValidation: { id: "CKV_AWS_36", cat: "IaC misconfiguration", sev: "MEDIUM", title: "CloudTrail log file validation is off", fix: "enable_log_file_validation = true, so tampering with logs can be detected.", tool: { checkov: "CKV_AWS_36", trivy: "PRACTICE-AWS-09" } },
+    imds: { id: "CKV_AWS_79", cat: "IaC misconfiguration", sev: "HIGH", title: "Instance metadata service version 1 is enabled: an SSRF bug can read the role's credentials", fix: "metadata_options { http_tokens = \"required\" } (IMDSv2 only).", tool: { checkov: "CKV_AWS_79" } },
     providerKeys: { id: "CKV_AWS_41", cat: "secrets", sev: "CRITICAL", title: "AWS keys hard-coded in the provider block", fix: "Remove them; use a role (OIDC in CI, an instance profile or SSO locally).", tool: { checkov: "CKV_AWS_41" } }
   };
 
@@ -420,7 +423,7 @@
       if ((r.type === "aws_s3_bucket_acl" || r.type === "aws_s3_bucket") && /^public-read/.test(at("acl") || "")) out.push(f(TF.s3Acl, attrLine(r, "acl"), { resource: `${r.type}.${r.name}` }));
       if (r.type === "aws_s3_bucket_public_access_block") {
         for (const k of ["block_public_acls", "block_public_policy", "ignore_public_acls", "restrict_public_buckets"]) {
-          if (!truthy(at(k))) out.push(f(TF.s3Block, attrLine(r, k), { resource: `${r.type}.${r.name}`, detail: k, id: { block_public_acls: "CKV_AWS_53", block_public_policy: "CKV_AWS_54", ignore_public_acls: "CKV_AWS_55", restrict_public_buckets: "CKV_AWS_56" }[k], tool: { checkov: { block_public_acls: "CKV_AWS_53", block_public_policy: "CKV_AWS_54", ignore_public_acls: "CKV_AWS_55", restrict_public_buckets: "CKV_AWS_56" }[k], trivy: { block_public_acls: "AVD-AWS-0086", block_public_policy: "AVD-AWS-0087", ignore_public_acls: "AVD-AWS-0091", restrict_public_buckets: "AVD-AWS-0093" }[k] }, title: `S3 public access block: ${k} is not true` }));
+          if (!truthy(at(k))) out.push(f(TF.s3Block, attrLine(r, k), { resource: `${r.type}.${r.name}`, detail: k, id: { block_public_acls: "CKV_AWS_53", block_public_policy: "CKV_AWS_54", ignore_public_acls: "CKV_AWS_55", restrict_public_buckets: "CKV_AWS_56" }[k], tool: { checkov: { block_public_acls: "CKV_AWS_53", block_public_policy: "CKV_AWS_54", ignore_public_acls: "CKV_AWS_55", restrict_public_buckets: "CKV_AWS_56" }[k], trivy: { block_public_acls: "PRACTICE-AWS-02", block_public_policy: "PRACTICE-AWS-10", ignore_public_acls: "PRACTICE-AWS-11", restrict_public_buckets: "PRACTICE-AWS-12" }[k] }, title: `S3 public access block: ${k} is not true` }));
         }
       }
       const rules = r.type === "aws_security_group" ? r.blocks.filter((b) => b.type === "ingress").map((b) => ({ a: b.attrs, line: b.line }))
@@ -451,6 +454,11 @@
           if (acts.includes("*") && res.includes("*")) out.push(f(TF.iamStar, attrLine(r, "policy"), { resource: `${r.type}.${r.name}` }));
           else if (acts.some((a) => /(^\*$|:\*$)/.test(a)) || res.includes("*")) out.push(f(TF.iamWild, attrLine(r, "policy"), { resource: `${r.type}.${r.name}` }));
         }
+      }
+      if (r.type === "aws_instance" || r.type === "aws_launch_template") {
+        const mo = r.blocks.find((b) => b.type === "metadata_options");
+        const tokens = mo && mo.attrs.http_tokens ? mo.attrs.http_tokens.value : null;
+        if (tokens !== "required") out.push(f(TF.imds, mo && mo.attrs.http_tokens ? mo.attrs.http_tokens.line : r.line, { resource: `${r.type}.${r.name}` }));
       }
       if (r.type === "aws_cloudtrail") {
         if (!truthy(at("is_multi_region_trail"))) out.push(f(TF.trailRegions, attrLine(r, "is_multi_region_trail"), { resource: `${r.type}.${r.name}` }));
