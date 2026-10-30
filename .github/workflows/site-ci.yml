@@ -8,7 +8,7 @@ on:
     paths: ["site/**", "tests/**", "scripts/**", ".github/workflows/site-ci.yml"]
 
 permissions:
-  contents: read
+  contents: read # check out the code to run the tests
 
 concurrency:
   group: site-ci-${{ github.ref }}
