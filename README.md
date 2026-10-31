@@ -1,9 +1,9 @@
 # DevSecOps Security Lab
 
 A practical defense-in-depth DevSecOps reference repository built with GitHub Actions,
-and **DevSecOps Quest**, a free learning site built from it: https://sandeepkomal.github.io/DevSecOps/
+and **DevOps Nimbus DevSecOps**, a free learning site built from it: https://sandeepkomal.github.io/DevSecOps/
 
-## DevSecOps Quest (the learning site)
+## DevOps Nimbus DevSecOps: zero to on-call, in your browser
 
 `site/` is a static site with no dependencies, trackers or cookies:
 

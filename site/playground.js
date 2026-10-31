@@ -109,6 +109,7 @@
     if (solved || !scenario.won(sim)) return;
     solved = true;
     store.set("solved", [...new Set([...solvedIds(), scenario.id])]);
+    document.dispatchEvent(new CustomEvent("dq:solved", { detail: scenario.id }));
     renderPicker();
     const b = $('.pg-scn[aria-pressed="true"]');
     if (b) b.classList.add("just-solved");
@@ -174,6 +175,7 @@
   });
 
   window.DSPlayground = {
+    scenarios: SCENARIOS.map((s) => ({ id: s.id, title: s.title, story: s.story, level: s.level })),
     load,
     // From the cheat sheet: open the scenario a command needs, then run it.
     prefill(cmd, where) {

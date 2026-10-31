@@ -642,7 +642,7 @@ assert.match(run(s, "cat .gitignore && cat nope && cat README.md"), /\.env[\s\S]
 // The cheat sheet: each Try row runs as written in its scenario; Lab rows do not run here.
 global.window = global.window || {};
 require(path.resolve(__dirname, "../site/data.js"));
-const { cheats } = window.QUEST;
+const { cheats } = window.TRACK;
 const runsIn = (id, cmd) => {
   const sim = id === "any" ? new Sim() : fresh(id);
   const out = shell(sim, cmd);

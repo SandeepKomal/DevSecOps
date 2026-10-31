@@ -1,7 +1,7 @@
 // Quiz questions for each level. Plain data, no logic.
 // Each: q, options (4), answer (index), why.
 "use strict";
-window.QUEST_QUIZ = {
+window.TRACK_QUIZ = {
   "00": [
     { q: "A team adds security scans to the pipeline but lets each one fail softly \"for now\". Six months later what is most likely true?", options: ["The findings were fixed by developers reading the logs", "Findings piled up unseen, because nothing ever blocked on them", "The scanners got faster", "The security team reviewed every run by hand"], answer: 1, why: "A gate that cannot fail is ignored. Shift-left works when a finding stops the change that introduced it, with a clear way to fix or formally accept it." },
     { q: "Why is a vulnerability cheaper to fix in a pull request than in production?", options: ["Production fixes need a change request form", "The author still has the context, nothing depends on it yet, and nothing has been exposed", "Scanners are more accurate on pull requests", "Production code cannot be changed"], answer: 1, why: "Early, the fix is a line in a change the author understands. Late, it needs triage, coordination, a release, and possibly incident response." },

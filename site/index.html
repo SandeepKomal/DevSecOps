@@ -4,23 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
-  <title>DevSecOps Quest</title>
+  <title>DevSecOps · DevOps Nimbus</title>
   <meta name="description" content="Learn DevSecOps by fixing a pipeline: leaked secrets, vulnerable dependencies, SQL injection, root containers, public buckets, unsigned images and live incidents, with a browser simulator, a pipeline X-ray and a troubleshooting reference.">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="DevSecOps Quest">
+  <meta property="og:site_name" content="DevOps Nimbus">
+  <meta property="og:title" content="DevSecOps, zero to on-call · DevOps Nimbus">
   <meta property="og:description" content="Security as part of the build: secrets, dependencies, images, infrastructure and supply chain, scanned and fixed in a pipeline simulator. Free, no account.">
   <meta property="og:url" content="https://sandeepkomal.github.io/DevSecOps/">
   <link rel="canonical" href="https://sandeepkomal.github.io/DevSecOps/">
   <link rel="stylesheet" href="style.css">
-  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
   <header class="top">
     <div class="wrap top-inner">
-      <a class="brand" href="#path" aria-label="DevSecOps Quest home">
-        <img src="logo.svg" alt="" width="22" height="22">
-        DevSecOps Quest
+      <a class="brand" href="#path" aria-label="DevOps Nimbus DevSecOps, home">
+        <img class="mark" src="nimbus.svg" alt="" width="37" height="22">
+        DevOps Nimbus <span class="brand-track">DevSecOps</span>
       </a>
       <nav aria-label="Sections">
         <div class="mode learn" role="group" aria-label="Learn">
@@ -37,14 +38,13 @@
         </div>
       </nav>
       <button type="button" class="kbd-btn" id="palette-open" aria-label="Search the site (Ctrl+K)"><span>Search</span><kbd id="palette-key">Ctrl K</kbd></button>
-      <a class="gh" id="gh-link" href="https://github.com/SandeepKomal/DevSecOps">GitHub</a>
     </div>
   </header>
 
   <main id="main" class="wrap">
     <section id="tab-path" class="tab">
       <header class="hero">
-        <p class="eyebrow">DevSecOps Quest</p>
+        <p class="eyebrow"><img class="eyebrow-logo" src="logo.svg" alt="" width="20" height="20">DevSecOps · zero to on-call</p>
         <h1>Security as part<br>of the build.</h1>
         <p class="sub">Secrets, dependencies, images, infrastructure and supply chain, scanned and fixed in the pipeline. Practise on a simulated repository that breaks the way real ones do.</p>
         <div class="doors">
@@ -69,6 +69,7 @@
         </div>
         <div class="stage" id="stage" aria-label="Where each problem is caught"></div>
         <div class="stats" id="stats"></div>
+        <section class="engage" id="engage" aria-label="Your learning"></section>
       </header>
 
       <h2 class="section-title">Everything you need, from the first scan to the 3 a.m. incident.</h2>
@@ -199,7 +200,7 @@
   <footer class="foot">
     <div class="wrap foot-grid">
       <div class="foot-brand">
-        <a class="brand" href="#path"><img src="logo.svg" alt="" width="28" height="28">DevSecOps Quest</a>
+        <a class="brand" href="#path"><img class="mark" src="nimbus.svg" alt="" width="47" height="28">DevOps Nimbus <span class="brand-track">DevSecOps</span></a>
         <p>Learn DevSecOps by fixing a pipeline: a simulator, quizzes, an X-ray for pipelines and infrastructure, and a troubleshooting reference. Free for everyone.</p>
         <a class="pill small-pill" href="https://github.com/SandeepKomal/DevSecOps">GitHub source code</a>
       </div>
@@ -214,6 +215,7 @@
       </nav>
       <nav class="foot-col" aria-label="Project">
         <h2>Project</h2>
+        <a href="https://sandeepkomal.github.io/devops-nimbus/">All DevOps Nimbus tracks</a>
         <a href="problems.html">All problems, one page</a>
         <a href="https://github.com/SandeepKomal/DevSecOps/tree/main/.github/workflows">The security workflows</a>
         <a href="https://github.com/SandeepKomal/DevSecOps/issues">Report an issue</a>
@@ -223,7 +225,7 @@
     <div class="wrap foot-base">
       <p>© 2024–2026 Sandeep Komal Pothu and contributors.</p>
       <p>Open source under the MIT License. Built with no trackers, no cookies and nothing loaded from other sites.</p>
-      <p>Your progress (levels, quiz scores, solved scenarios) stays in this browser and is never sent anywhere. <button type="button" class="link-btn" id="forget">Clear it</button></p>
+      <p>Your progress (levels, quiz scores, solved scenarios, score, activity days) stays in this browser and is never sent anywhere. <button type="button" class="link-btn" id="forget">Clear it</button></p>
       <p>Product names are trademarks of their respective owners. This project is independent and not affiliated with any of them.</p>
     </div>
   </footer>
@@ -245,5 +247,6 @@
   <script src="app.js"></script>
   <script src="playground.js"></script>
   <script src="architecture.js"></script>
+  <script src="engage.js"></script>
 </body>
 </html>
