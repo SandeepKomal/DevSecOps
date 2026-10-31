@@ -9,6 +9,7 @@
 [![Trivy](https://img.shields.io/badge/Trivy-scanning-1904DA?logo=trivy&logoColor=white)](https://trivy.dev/)
 [![CodeQL](https://img.shields.io/badge/CodeQL-SAST-2F363D?logo=github&logoColor=white)](https://codeql.github.com/docs/)
 [![Security](https://img.shields.io/badge/security-CodeQL%20%C2%B7%20Semgrep%20%C2%B7%20gitleaks%20%C2%B7%20Trivy%20%C2%B7%20Checkov%20%C2%B7%20zizmor%20%C2%B7%20Scorecard-2ea44f)](https://github.com/SandeepKomal/DevSecOps/security)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 ![No trackers](https://img.shields.io/badge/site-no%20trackers%20%C2%B7%20no%20cookies-2ea44f)
 [![Contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen)](https://github.com/SandeepKomal/DevSecOps/issues)
 ![Last commit](https://img.shields.io/github/last-commit/SandeepKomal/DevSecOps)
@@ -177,7 +178,7 @@ Contributions are welcome: open an [issue](https://github.com/SandeepKomal/DevSe
 
 ## Security
 
-To report a vulnerability, use [private vulnerability reporting](https://github.com/SandeepKomal/DevSecOps/security/advisories/new) rather than a public issue. The automated scanners listed under [Security coverage](#security-coverage) run in GitHub Actions (DAST and the AWS assessment are started by hand), and their SARIF results appear in the repository's Security tab.
+To report a vulnerability, use [private vulnerability reporting](https://github.com/SandeepKomal/DevSecOps/security/advisories/new) rather than a public issue. The automated scanners listed under [Security coverage](#security-coverage) run in GitHub Actions (DAST and the AWS assessment are started by hand), and their SARIF results appear in the repository's Security tab. See [SECURITY.md](SECURITY.md).
 
 ## Privacy and cost
 
@@ -185,7 +186,7 @@ The learning site runs entirely in your browser: no accounts, cookies, trackers 
 
 ## License and trademarks
 
-This repository does not include a license file yet.
+MIT, see [LICENSE](LICENSE).
 
 Product names are trademarks of their respective owners. This project is independent and not affiliated with any of them.
 
