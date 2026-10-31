@@ -23,16 +23,22 @@ on:
   #   types:
   #     - completed
 
-permissions:
-  id-token: write
-  contents: read
-  issues:   write
+permissions: {}
+
+# One deploy at a time per branch; a second run queues instead of racing the first.
+concurrency:
+  group: zap-dast-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
 
   # ── JOB 1: Your existing deploy job — unchanged ───────────────────────────
   DEPLOY:
+    name: Deploy to EKS
     runs-on: ubuntu-latest
+    permissions:
+      contents: read  # check out the Helm charts
+      id-token: write # assume the AWS role through OIDC
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'workflow_run' &&
@@ -66,10 +72,10 @@ jobs:
 
       # Configure kubectl
       - name: Update kubeconfig for EKS
-        run: |
-          aws eks update-kubeconfig \
-            --region ${{ vars.AWS_REGION }} \
-            --name ${{ vars.EKS_CLUSTER_NAME }}
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          CLUSTER: ${{ vars.EKS_CLUSTER_NAME }}
+        run: aws eks update-kubeconfig --region "$AWS_REGION" --name "$CLUSTER"
 
       # Install Helm
       - name: Set up Helm
@@ -81,15 +87,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INPUT_TAG: ${{ github.event.inputs.image_tag }}
+          EVENT: ${{ github.event_name }}
+          RUN_NUMBER: ${{ github.event.workflow_run.run_number }}
+          REPO: ${{ github.repository }}
         run: |
           if [ -n "$INPUT_TAG" ]; then
             TAG="$INPUT_TAG"
-          elif [ "${{ github.event_name }}" == "workflow_run" ]; then
-            TAG="${{ github.event.workflow_run.run_number }}"
+          elif [ "$EVENT" == "workflow_run" ]; then
+            TAG="$RUN_NUMBER"
           else
             echo "No tag provided, fetching last successful CI run..."
             TAG=$(gh api \
-              "/repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/actions/workflows/ci_workflow.yaml/runs?status=success&per_page=1" \
+              "/repos/$REPO/actions/workflows/ci_workflow.yaml/runs?status=success&per_page=1" \
               --jq '.workflow_runs[0].run_number')
           fi
           if [ -z "$TAG" ]; then
@@ -135,18 +144,19 @@ jobs:
 
       # Verify deployment is healthy before DAST starts
       - name: Verify Deployment
-        run: |
-          kubectl rollout status deployment/${{ vars.HELM_RELEASE_NAME }} \
-            --namespace ${{ vars.K8S_NAMESPACE }} \
-            --timeout=3m
+        env:
+          RELEASE: ${{ vars.HELM_RELEASE_NAME }}
+          NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+        run: kubectl rollout status "deployment/$RELEASE" --namespace "$NAMESPACE" --timeout=3m
 
       # ── Detect environment from namespace ─────────────────────────────────
       # Used by DAST job to decide scan type
       # dev/qa namespace  → determines scan intensity
       - name: Detect Environment
         id: get_env
+        env:
+          NAMESPACE: ${{ vars.K8S_NAMESPACE }}
         run: |
-          NAMESPACE="${{ vars.K8S_NAMESPACE }}"
           if echo "$NAMESPACE" | grep -qi "prod"; then
             ENV="prod"
           elif echo "$NAMESPACE" | grep -qi "stg\|staging"; then
@@ -163,19 +173,23 @@ jobs:
       # Tries LoadBalancer first, falls back to GitHub variable
       - name: Get App URL
         id: get_app_url
+        env:
+          RELEASE: ${{ vars.HELM_RELEASE_NAME }}
+          NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+          FALLBACK_URL: ${{ vars.APP_URL }}
         run: |
           echo "Waiting for LoadBalancer IP/hostname..."
           sleep 20
 
           # Try to get LoadBalancer external URL from Kubernetes
-          APP_URL=$(kubectl get svc ${{ vars.HELM_RELEASE_NAME }} \
-            --namespace ${{ vars.K8S_NAMESPACE }} \
+          APP_URL=$(kubectl get svc "$RELEASE" \
+            --namespace "$NAMESPACE" \
             -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
 
           # If no LoadBalancer, try Ingress
           if [ -z "$APP_URL" ]; then
             APP_URL=$(kubectl get ingress \
-              --namespace ${{ vars.K8S_NAMESPACE }} \
+              --namespace "$NAMESPACE" \
               -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' \
               2>/dev/null || echo "")
           fi
@@ -183,7 +197,7 @@ jobs:
           # Fall back to GitHub variable if kubectl didn't return URL
           if [ -z "$APP_URL" ]; then
             echo "Could not get URL from Kubernetes — using APP_URL variable"
-            APP_URL="${{ vars.APP_URL }}"
+            APP_URL="$FALLBACK_URL"
           fi
 
           # Add https:// if not present
@@ -197,7 +211,10 @@ jobs:
 
   # ── JOB 2: DAST scan — runs after DEPLOY succeeds ────────────────────────
   DAST:
+    name: DAST scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # check out the ZAP plans
     needs: [ DEPLOY ]           # waits for deploy + verify to complete
 
     # Skip DAST if:
@@ -218,9 +235,10 @@ jobs:
       # ── Decide scan type based on environment ─────────────────────────────
       - name: Set DAST scan type
         id: scan_config
+        env:
+          ENV: ${{ needs.DEPLOY.outputs.environment }}
+          APP_URL: ${{ needs.DEPLOY.outputs.app_url }}
         run: |
-          ENV="${{ needs.DEPLOY.outputs.environment }}"
-          APP_URL="${{ needs.DEPLOY.outputs.app_url }}"
 
           echo "Environment : $ENV"
           echo "App URL     : $APP_URL"
@@ -250,8 +268,9 @@ jobs:
       # ── Wait for app to be fully ready before scanning ────────────────────
       # Deployment verified but app may still be warming up
       - name: Wait for app to be ready
+        env:
+          APP_URL: ${{ needs.DEPLOY.outputs.app_url }}
         run: |
-          APP_URL="${{ needs.DEPLOY.outputs.app_url }}"
           echo "Waiting for app to respond at: $APP_URL"
 
           MAX_RETRIES=12    # 12 x 10s = 2 minutes max wait

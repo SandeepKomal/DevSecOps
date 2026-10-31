@@ -10,14 +10,19 @@ on:
         default: "true"
         type: boolean
 
-permissions:
-  id-token: write
-  contents: read
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 jobs:
   prowler:
+    name: Prowler AWS assessment
     if: inputs.scan_account
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # assume the read-only security role through OIDC
     steps:
       - name: Configure AWS credentials with OIDC
         uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5

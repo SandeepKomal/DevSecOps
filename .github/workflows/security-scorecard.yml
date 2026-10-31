@@ -8,12 +8,19 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  security-events: write
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   scorecard:
+    name: scorecard
+    permissions:
+      contents: read         # check out the code
+      security-events: write # upload results to code scanning
+      id-token: write        # publish results to the OpenSSF API (publish_results: true)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

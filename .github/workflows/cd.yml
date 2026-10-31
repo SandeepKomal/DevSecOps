@@ -34,14 +34,18 @@ on:
           - baseline
           - full
 
-permissions:
-  contents: read
-  packages: read
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   pre-deploy:
     name: Image Security Gate
     runs-on: ubuntu-latest
+    permissions:
+      packages: read # pull the image from GHCR to scan it
     steps:
       - name: Trivy image scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -57,6 +61,7 @@ jobs:
     name: Kubernetes Deployment
     needs: pre-deploy
     runs-on: ubuntu-latest
+    permissions: {}
     environment: staging
     steps:
       - name: Install kubectl
@@ -99,6 +104,7 @@ jobs:
     name: OWASP ZAP DAST
     needs: deploy
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - name: Validate target
         env:

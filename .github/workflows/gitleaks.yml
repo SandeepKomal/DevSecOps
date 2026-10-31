@@ -7,10 +7,17 @@ on:
   schedule:
     - cron: "17 2 * * 1"
   workflow_dispatch:
-permissions:
-  contents: read
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   gitleaks:
+    name: gitleaks
+    permissions:
+      contents: read # check out the code
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6

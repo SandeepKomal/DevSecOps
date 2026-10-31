@@ -3,11 +3,18 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
-permissions:
-  contents: read
-  pull-requests: read
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   dependency-review:
+    name: dependency-review
+    permissions:
+      contents: read      # check out the code
+      pull-requests: read # read the pull request's dependency changes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
