@@ -7,12 +7,18 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  security-events: write
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   docker-security:
+    name: docker-security
+    permissions:
+      contents: read         # check out the code
+      security-events: write # upload results to code scanning
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6

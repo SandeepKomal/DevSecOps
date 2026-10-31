@@ -7,15 +7,18 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  security-events: write
-  packages: write
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
     name: Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # check out the code
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -43,6 +46,8 @@ jobs:
     name: CI Security Gates
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # check out the history gitleaks scans
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -68,8 +73,9 @@ jobs:
     needs: security-gates
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      packages: write
+      contents: read         # check out the Dockerfile
+      packages: write        # push the image to GHCR
+      security-events: write # upload the container scan to code scanning
     outputs:
       image: ${{ steps.image.outputs.image }}
     steps:
@@ -88,8 +94,11 @@ jobs:
       - name: Set image
         id: image
         if: steps.dockerfile.outputs.present == 'true'
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
         run: |
-          IMAGE="ghcr.io/${{ github.repository }}:${{ github.sha }}"
+          IMAGE="ghcr.io/${REPO,,}:$SHA"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
       - name: Login to GHCR
         if: steps.dockerfile.outputs.present == 'true'
@@ -100,7 +109,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build image
         if: steps.dockerfile.outputs.present == 'true'
-        run: docker build -t "${{ steps.image.outputs.image }}" .
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: docker build -t "$IMAGE" .
       - name: Trivy container scan
         if: steps.dockerfile.outputs.present == 'true'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -119,15 +130,22 @@ jobs:
           sarif_file: trivy-container.sarif
       - name: Push image
         if: steps.dockerfile.outputs.present == 'true'
-        run: docker push "${{ steps.image.outputs.image }}"
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: docker push "$IMAGE"
 
   ci-summary:
     name: CI Summary
     if: always()
     needs: [test, security-gates, build]
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
-      - run: |
-          echo "Tests: ${{ needs.test.result }}"
-          echo "Security gates: ${{ needs.security-gates.result }}"
-          echo "Container build: ${{ needs.build.result }}"
+      - env:
+          TESTS: ${{ needs.test.result }}
+          GATES: ${{ needs.security-gates.result }}
+          BUILD: ${{ needs.build.result }}
+        run: |
+          echo "Tests: $TESTS"
+          echo "Security gates: $GATES"
+          echo "Container build: $BUILD"

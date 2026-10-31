@@ -7,11 +7,18 @@ on:
   schedule:
     - cron: "23 2 * * 1"
   workflow_dispatch:
-permissions:
-  contents: read
-  security-events: write
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   codeql:
+    name: codeql
+    permissions:
+      contents: read         # check out the code
+      security-events: write # upload results to code scanning
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

@@ -9,14 +9,19 @@ on:
     - cron: "11 4 * * 1"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  security-events: write
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   codeql:
     name: GHAS Code Scanning - CodeQL
     runs-on: ubuntu-latest
+    permissions:
+      contents: read         # check out the workflows
+      security-events: write # upload CodeQL results to code scanning
     strategy:
       fail-fast: false
       matrix:
@@ -36,17 +41,20 @@ jobs:
           category: "/ghas/${{ matrix.language }}"
 
   dependency-review:
+    name: dependency-review
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: read # read the dependency changes between base and head
     steps:
       - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
         with:
           fail-on-severity: high
 
   ghas-checklist:
+    name: ghas-checklist
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - name: GHAS controls
         run: |

@@ -7,12 +7,18 @@ on:
   pull_request:
     branches: [main]
 
-permissions:
-  contents: read
-  security-events: write
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   container-scan:
+    name: container-scan
+    permissions:
+      contents: read         # check out the code
+      security-events: write # upload results to code scanning
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
