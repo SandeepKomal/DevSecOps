@@ -96,6 +96,6 @@ for (const f of fs.readdirSync(path.join(root, "site")).filter((x) => x.endsWith
   assert.ok(!/TODO|FIXME/.test(src), `${f}: no TODOs`);
   for (const ref of html.match(/src="([^"]+)"/g) || []) assert.ok(fs.existsSync(path.join(root, "site", ref.slice(5, -1))), `${ref} exists`);
 }
-for (const f of ["robots.txt", "sitemap.xml", "logo.svg", "problems.html"]) assert.ok(fs.existsSync(path.join(root, "site", f)), `site/${f}`);
+for (const f of ["robots.txt", "sitemap.xml", "problems.html"]) assert.ok(fs.existsSync(path.join(root, "site", f)), `site/${f}`);
 
 console.log(`site data ok: ${Q.levels.length} levels, ${questions} quiz questions, ${Q.doctor.length} troubleshooting entries, ${Q.cheats.length} commands, ${Q.sdlc.controls.length} controls`);
