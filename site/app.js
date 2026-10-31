@@ -107,7 +107,7 @@
       tile("#xray", "Pipeline X-ray", "Pipelines, audited.", "Paste a workflow, Dockerfile, Terraform or manifest; see every line and every gap.", true),
       tile("#doctor", "Troubleshoot", "Finding to fix.", `${Q.doctor.length} errors and findings, each with cause, confirm, fix and prevent.`),
       tile("#quiz", "Quiz", "Threats and controls.", `${Object.values(window.QUEST_QUIZ).flat().length} questions with the reasoning.`),
-      tile("#arch", "DevSecOps arch", "Where each control sits.", "Plan to operate, shift left and shift right."));
+      tile("#arch", "Secure SDLC", "Where each control sits.", "Plan to operate, shift left and shift right."));
     $("#pg-sub").textContent = `${SCENARIOS.length} real findings and incidents, the commands you would use at work. No install, no account.`;
     $("#standards").append(...Q.standards.map(([name, url, text]) => h("a", { href: url, rel: "noopener" }, h("strong", null, name), h("span", null, text))));
   }
@@ -320,7 +320,7 @@
   let pItems = [];
   let pActive = 0;
   const ACTIONS = [
-    ...["path", "quiz", "xray", "doctor", "cheats", "arch"].map((t, i) => ({ label: ["Path and playground", "Quiz", "Pipeline X-ray", "Troubleshoot", "Cheat sheet", "DevSecOps architecture"][i], kind: "Section", run: () => go(t) })),
+    ...["path", "quiz", "xray", "doctor", "cheats", "arch"].map((t, i) => ({ label: ["Path and playground", "Quiz", "Pipeline X-ray", "Troubleshoot", "Cheat sheet", "Secure SDLC"][i], kind: "Section", run: () => go(t) })),
     ...SCENARIOS.map((s) => ({ label: `Playground: ${s.title}`, hint: s.group, kind: "Scenario", run: () => go("play/" + s.id) })),
     ...Q.doctor.map((d) => ({ label: `Troubleshoot: ${d.title}`, hint: d.tool + " " + d.error, kind: "Problem", run: () => go("fix/" + d.id) })),
     ...Q.levels.map((lv) => ({ label: `Level ${lv.id} · ${lv.title}`, hint: lv.topic, kind: "Level", run: () => { go("path", true); const el = document.getElementById("level-" + lv.id); el.open = true; scrollToEl(el); } }))

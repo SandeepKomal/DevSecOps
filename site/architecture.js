@@ -1,4 +1,4 @@
-// The DevSecOps architecture tab: the secure SDLC as seven phases, each with
+// The Secure SDLC tab: the secure SDLC as seven phases, each with
 // its controls. Select a control to read what it catches and how it fails;
 // the toggles show which controls shift left (before merge) or right (after release).
 "use strict";
