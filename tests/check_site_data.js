@@ -10,7 +10,7 @@ const assert = require("assert");
 const root = path.resolve(__dirname, "..");
 global.window = {};
 for (const f of ["data", "quiz-bank", "rules", "repo", "sim", "shell", "scenarios"]) require(path.join(root, `site/${f}.js`));
-const Q = window.QUEST;
+const Q = window.TRACK;
 const ids = new Set(window.DSScenarios.SCENARIOS.map((s) => s.id));
 const levelIds = new Set(Q.levels.map((l) => l.id));
 const backticks = (t, where) => assert.strictEqual((String(t).match(/`/g) || []).length % 2, 0, `${where}: unbalanced backticks`);
@@ -31,7 +31,7 @@ for (const s of window.DSScenarios.SCENARIOS) assert.ok(levelIds.has(s.level), `
 
 let questions = 0;
 for (const lv of Q.levels) {
-  const items = window.QUEST_QUIZ[lv.id] || [];
+  const items = window.TRACK_QUIZ[lv.id] || [];
   assert.ok(items.length >= 5, `level ${lv.id} needs at least 5 quiz questions, has ${items.length}`);
   const seen = new Set();
   for (const item of items) {
@@ -86,7 +86,7 @@ assert.ok(html.includes(`content="default-src 'self'; script-src 'self'; style-s
 assert.ok(!/<script>(?!<\/)/.test(html) && !/<script(?![^>]*\bsrc=)[^>]*>/.test(html), "no inline scripts");
 assert.ok(!/\sstyle=|\son[a-z]+=/i.test(html), "no inline styles or handlers");
 assert.ok(!/<script[^>]+src="https?:|<link[^>]+rel="(stylesheet|icon|preload)"[^>]+href="https?:/.test(html), "no third-party scripts or stylesheets");
-assert.ok(/<title>DevSecOps Quest<\/title>/.test(html) && /name="description"/.test(html) && /property="og:title"/.test(html) && /property="og:description"/.test(html), "title, description and Open Graph");
+assert.ok(/<title>DevSecOps · DevOps Nimbus<\/title>/.test(html) && /name="description"/.test(html) && /property="og:title"/.test(html) && /property="og:description"/.test(html), "title, description and Open Graph");
 assert.ok(html.includes("Product names are trademarks of their respective owners. This project is independent and not affiliated with any of them."), "trademark line");
 assert.ok(html.includes("© 2024–2026 Sandeep Komal Pothu and contributors."), "copyright");
 for (const f of fs.readdirSync(path.join(root, "site")).filter((x) => x.endsWith(".js"))) {

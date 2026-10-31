@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, "..");
 global.window = {};
 require(path.join(root, "site/data.js"));
 for (const f of ["rules", "repo", "sim", "shell", "scenarios"]) require(path.join(root, `site/${f}.js`));
-const Q = window.QUEST;
+const Q = window.TRACK;
 const titles = Object.fromEntries(window.DSScenarios.SCENARIOS.map((s) => [s.id, s.title]));
 
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -43,7 +43,7 @@ ${d.fix.map((f) => `      <li>${code(f)}</li>`).join("\n")}
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
-  <title>DevSecOps problems and fixes · DevSecOps Quest</title>
+  <title>DevSecOps problems and fixes · DevSecOps · DevOps Nimbus</title>
   <meta name="description" content="${Q.doctor.length} DevSecOps errors and scanner findings with their exact text, cause, how to confirm, the fix and how to prevent it: gitleaks, Trivy, Semgrep, Checkov, cosign, GitHub Actions, Kubernetes and AWS.">
   <meta property="og:type" content="article">
   <meta property="og:title" content="DevSecOps problems and fixes">
@@ -51,11 +51,11 @@ ${d.fix.map((f) => `      <li>${code(f)}</li>`).join("\n")}
   <meta property="og:url" content="${esc(Q.site)}problems.html">
   <link rel="canonical" href="${esc(Q.site)}problems.html">
   <link rel="stylesheet" href="style.css">
-  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body>
 <main class="wrap problems">
-  <p><a href="index.html">DevSecOps Quest</a> · <a href="index.html#doctor">Searchable version</a></p>
+  <p><a href="index.html">DevOps Nimbus · DevSecOps</a> · <a href="index.html#doctor">Searchable version</a></p>
   <h1>DevSecOps problems and fixes</h1>
   <p class="lede">${Q.doctor.length} errors and scanner findings: the exact text, why it happens, how to confirm it, how to fix it and how to stop it coming back. Then learn it for good: break and fix each one yourself in the <a href="index.html#playground">browser playground</a>. Practice examples use invented IDs such as PRACTICE-2026-0001.</p>
   <nav aria-label="Groups"><ul>

@@ -5,8 +5,8 @@
 
 (function () {
   const { h, titleOf } = window.DSUI;
-  const { phases, controls } = window.QUEST.sdlc;
-  const repo = window.QUEST.repo;
+  const { phases, controls } = window.TRACK.sdlc;
+  const repo = window.TRACK.repo;
   const root = document.getElementById("arch");
   const LEFT = ["plan", "code", "build"];
   const RIGHT = ["deploy", "operate"];
@@ -30,7 +30,7 @@
       h("h4", null, "Tools"), h("p", null, c.tools),
       h("h4", null, "How it fails"), h("p", null, c.fails),
       h("h4", null, "Standard"), h("p", null, c.std),
-      ...(c.workflow ? [h("h4", null, "In this repository"), h("p", null, h("a", { href: `${repo}/blob/main/.github/workflows/${c.workflow}` }, c.workflow), " ", window.QUEST.workflows[c.workflow] || "")] : []),
+      ...(c.workflow ? [h("h4", null, "In this repository"), h("p", null, h("a", { href: `${repo}/blob/main/.github/workflows/${c.workflow}` }, c.workflow), " ", window.TRACK.workflows[c.workflow] || "")] : []),
       ...(c.scenarios.length ? [h("div.fix-actions", null, h("span.muted.small", null, "Practise it:"), c.scenarios.map((s) => h("a.chip", { href: "#play/" + s }, titleOf[s])))] : []));
   }
 

@@ -1,7 +1,7 @@
-// Content for the DevSecOps Quest site. Plain data, no logic.
+// Content for the DevOps Nimbus DevSecOps site. Plain data, no logic.
 "use strict";
 
-window.QUEST = {
+window.TRACK = {
   repo: "https://github.com/SandeepKomal/DevSecOps",
   site: "https://sandeepkomal.github.io/DevSecOps/",
 
@@ -523,4 +523,4 @@ window.QUEST = {
 };
 
 // Troubleshoot groups, in order, built from the entries.
-window.QUEST.doctorGroups = [...new Set(window.QUEST.doctor.map((d) => d.group))].map((g) => [g, window.QUEST.doctor.filter((d) => d.group === g).map((d) => d.id)]);
+window.TRACK.doctorGroups = [...new Set(window.TRACK.doctor.map((d) => d.group))].map((g) => [g, window.TRACK.doctor.filter((d) => d.group === g).map((d) => d.id)]);

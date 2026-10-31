@@ -1,8 +1,8 @@
-// DevSecOps Quest site. No dependencies, no network requests.
+// DevOps Nimbus DevSecOps site. No dependencies, no network requests.
 "use strict";
 
 (function () {
-  const Q = window.QUEST;
+  const Q = window.TRACK;
   const $ = (sel) => document.querySelector(sel);
   const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   const scrollToEl = (el) => el && el.scrollIntoView({ block: "start", behavior: still() ? "auto" : "smooth" });
@@ -105,7 +105,7 @@
     $("#bento").append(
       tile("#playground", "Playground", "A pipeline under attack.", `${SCENARIOS.length} scenarios: leaked keys, vulnerable dependencies, root containers, open buckets, unsigned images, live incidents.`, true),
       tile("#xray", "Pipeline X-ray", "Pipelines, audited.", "Paste a workflow, Dockerfile, Terraform or manifest; see every line and every gap.", true),
-      tile("#quiz", "Quiz", "Threats and controls.", `${Object.values(window.QUEST_QUIZ).flat().length} questions with the reasoning.`),
+      tile("#quiz", "Quiz", "Threats and controls.", `${Object.values(window.TRACK_QUIZ).flat().length} questions with the reasoning.`),
       tile("#arch", "Secure SDLC", "Where each control sits.", "Plan to operate, shift left and shift right."),
       tile("#doctor", "Stuck on an error?", "Learn why it happens, then practise the fix.", `${Q.doctor.length} errors and findings, each with a scenario to break and fix.`));
     $("#pg-sub").textContent = `${SCENARIOS.length} real findings and incidents, the commands you would use at work. No install, no account.`;
@@ -131,14 +131,14 @@
       list.append(h("li", null, h("details.level" + (isDone ? ".done" : ""), { id: "level-" + lv.id },
         h("summary", null,
           h("input", { type: "checkbox", checked: isDone, "aria-label": `Mark level ${lv.id} complete`, onclick: (e) => e.stopPropagation(),
-            onchange: (e) => { if (e.target.checked) done.add(lv.id); else done.delete(lv.id); store.set("done", [...done]); renderPath(); } }),
+            onchange: (e) => { if (e.target.checked) done.add(lv.id); else done.delete(lv.id); store.set("done", [...done]); if (e.target.checked) window.DQEngage.active(); renderPath(); } }),
           h("span.num", null, lv.id),
           h("span.what", null, h("strong", null, lv.title), h("span.topic", null, lv.topic)),
           h("a.copy", { href: "#quiz", onclick: () => { $("#quiz-level").value = lv.id; renderQuiz(); } }, score != null ? `Quiz ${score}%` : "Quiz")),
         h("div.level-body", null,
           h("div", null, h("h4", null, "What you learn"), h("ul", null, lv.learn.map((t) => h("li", null, ...rich(t)))),
             lv.workflows.length ? [h("h4", null, "In this repository"), ...lv.workflows.map((w) => h("p.wf.small", null, h("a", { href: `${Q.repo}/blob/main/.github/workflows/${w}` }, w), " ", h("span.muted", null, Q.workflows[w])))] : null),
-          h("div", null, h("h4", null, "Hands-on lab"), h("p.small", null, lv.lab), lv.cmds.length ? h("pre", null, h("code", null, lv.cmds.join("\n"))) : null,
+          h("div", null, h("h4", null, "Hands-on lab"), h("p.small", null, lv.lab), lv.cmds.length ? window.DQEngage.order(lv, h("pre", null, h("code", null, lv.cmds.join("\n")))) : null,
             h("h4", null, "Practise in the playground"), h("div.level-links", null, lv.scenarios.map((id) => h("a.chip", { href: "#play/" + id }, titleOf[id]))))))));
     }
     const stages = [...new Set(Q.levels.map((l) => l.stage))];
@@ -160,7 +160,7 @@
   function renderQuiz() {
     const mode = $("#quiz-level").value;
     const exam = mode === "exam";
-    const items = exam ? shuffle(Q.levels.flatMap((l) => window.QUEST_QUIZ[l.id].map((x) => ({ ...x, level: l.id })))).slice(0, 15) : window.QUEST_QUIZ[mode].map((x) => ({ ...x, level: mode }));
+    const items = exam ? shuffle(Q.levels.flatMap((l) => window.TRACK_QUIZ[l.id].map((x) => ({ ...x, level: l.id })))).slice(0, 15) : window.TRACK_QUIZ[mode].map((x) => ({ ...x, level: mode }));
     const out = $("#quiz-list");
     let answered = 0;
     let correct = 0;
@@ -172,7 +172,7 @@
       fill.style.width = (answered / items.length * 100) + "%";
       if (answered === items.length) {
         const pct = Math.round(correct / items.length * 100);
-        if (!exam) { const all = quizScores(); all[mode] = Math.max(all[mode] || 0, pct); store.set("quiz", all); renderPath(); }
+        if (!exam) { const all = quizScores(); all[mode] = Math.max(all[mode] || 0, pct); store.set("quiz", all); window.DQEngage.active(); renderPath(); }
         score.append(h("p.result", null, h("strong", null, `${pct}%. `), pct === 100 ? "Perfect score." : "Read the explanations you missed, practise the scenarios, and try again.", " ", h("button.linkish", { type: "button", onclick: renderQuiz }, "Try again")));
       }
     };
@@ -357,7 +357,7 @@
 
   // --- init -----------------------------------------------------------------------------------------
   $("#quiz-level").append(h("option", { value: "exam" }, "Exam: 15 random questions from every level"),
-    ...Q.levels.map((lv) => h("option", { value: lv.id }, `${lv.id} · ${lv.title} (${window.QUEST_QUIZ[lv.id].length} questions)`)));
+    ...Q.levels.map((lv) => h("option", { value: lv.id }, `${lv.id} · ${lv.title} (${window.TRACK_QUIZ[lv.id].length} questions)`)));
   $("#quiz-level").value = "00";
   $("#quiz-level").addEventListener("change", renderQuiz);
   $("#xray-examples").append(...window.DSExplain.EXAMPLES.map((ex) => h("button", { type: "button", "aria-selected": "false",
@@ -378,9 +378,9 @@
   signature();
   renderHome();
   renderGuides();
-  renderPath();
   renderQuiz();
   buildDoctorList();
   renderCheats();
-  window.addEventListener("DOMContentLoaded", route);
+  // The path waits for engage.js, which loads last.
+  window.addEventListener("DOMContentLoaded", () => { renderPath(); route(); });
 })();
