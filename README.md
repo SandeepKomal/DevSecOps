@@ -182,7 +182,7 @@ To report a vulnerability, use [private vulnerability reporting](https://github.
 
 ## Privacy and cost
 
-The learning site runs entirely in your browser: no accounts, cookies, trackers or database. Your progress stays in your browser unless you download it. The site is free and hosted on GitHub Pages. The manual `cloud-security.yml` and `zap_dast.yml` workflows use your own AWS account and can incur AWS charges.
+The learning site runs entirely in your browser: no accounts, cookies, trackers or database. Your progress stays in your browser unless you download it. The site is free and hosted on GitHub Pages. The manual `cloud-security.yml` and `zap_dast.yml` workflows use your own AWS account and can incur AWS charges. See [PRIVACY.md](PRIVACY.md) for the full privacy policy.
 
 ## License and trademarks
 
