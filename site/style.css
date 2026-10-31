@@ -591,3 +591,125 @@ kbd { font-weight: 500; font-size: .72rem; line-height: 1; color: var(--muted); 
 @media (prefers-reduced-motion: reduce) { .brand-back { transition: none; } }
 /* Narrow phones: the logo stands for DevOps Nimbus so the header keeps one row. */
 @media (max-width: 440px) { .brand-hub > span:not([class]) { display: none; } }
+
+/* While a feature's code is still arriving, its space shows calm grey shapes of what is coming,
+   sized to what replaces them, and the first screen fades in once as one piece. Both stop for
+   reduced motion. */
+.pg-scenarios:empty, .pg-story:empty, .playground:has(.pg-scenarios:empty) .pg-out:empty, .pg-checks:empty, .pg-files:empty, .pg-try:empty, #quiz-list:empty {
+  background: repeating-linear-gradient(to bottom, var(--code-bg) 0 12px, transparent 12px 28px) content-box;
+  animation: nimbus-skel 1.6s ease-in-out infinite alternate;
+}
+.pg-scenarios:empty { padding-top: 20px; padding-bottom: 20px; }
+.pg-story:empty, .pg-try:empty { background-size: 80% 100%; background-repeat: no-repeat; }
+.playground:has(.pg-scenarios:empty) .pg-out:empty { background-image: repeating-linear-gradient(to bottom, color-mix(in srgb, #fff 9%, transparent) 0 10px, transparent 10px 24px); background-size: 70% 100%; background-repeat: no-repeat; }
+#quiz-list:empty { min-height: 320px; }
+#pg-goal:empty { width: 649px; max-width: 100%; height: 39px; border: 0; background: var(--code-bg); animation: nimbus-skel 1.6s ease-in-out infinite alternate; }
+/* The last pipeline run: one stage pill. */
+.pg-stages:empty { min-height: 21px; animation: nimbus-skel 1.6s ease-in-out infinite alternate; }
+.pg-stages:empty::before { content: ""; width: 120px; height: 21px; border-radius: 99px; background: var(--code-bg); }
+/* The secure SDLC: an empty card of the same size. */
+#arch:empty {
+  border: 1px solid var(--hair); border-radius: var(--radius); box-shadow: var(--shadow);
+  background: var(--surface) linear-gradient(var(--code-bg), var(--code-bg)) 50% 50% / calc(100% - 56px) calc(100% - 56px) no-repeat;
+  animation: nimbus-skel 1.6s ease-in-out infinite alternate;
+}
+@keyframes nimbus-skel { from { opacity: .5; } to { opacity: 1; } }
+/* Each space wraps into more rows as the page narrows. */
+.pg-scenarios:empty { min-height: 859px; }
+.pg-story:empty { min-height: 165px; }
+.pg-checks:empty { min-height: 145px; }
+.pg-files:empty { min-height: 314px; }
+.pg-try:empty { min-height: 104px; }
+#arch:empty { min-height: 444px; }
+@media (max-width: 1101px) { .pg-try:empty { min-height: 122px; } }
+@media (max-width: 1093px) { .pg-checks:empty { min-height: 166px; } }
+@media (max-width: 1077px) { #arch:empty { min-height: 451px; } }
+@media (max-width: 1059px) { .pg-scenarios:empty { min-height: 901px; } }
+@media (max-width: 1045px) { .pg-scenarios:empty { min-height: 943px; } }
+@media (max-width: 1023px) { #arch:empty { min-height: 453px; } }
+@media (max-width: 1011px) { .pg-checks:empty { min-height: 186px; } }
+@media (max-width: 1005px) { .pg-checks:empty { min-height: 206px; } }
+@media (max-width: 1001px) { #arch:empty { min-height: 714px; } }
+@media (max-width: 997px) { #arch:empty { min-height: 745px; } }
+@media (max-width: 979px) { .pg-scenarios:empty { min-height: 1027px; } }
+@media (max-width: 965px) { .pg-files:empty { min-height: 346px; } }
+@media (max-width: 955px) { .pg-files:empty { min-height: 410px; } }
+@media (max-width: 945px) { .pg-scenarios:empty { min-height: 1069px; } }
+@media (max-width: 935px) { .pg-files:empty { min-height: 442px; } }
+@media (max-width: 925px) { .pg-scenarios:empty { min-height: 1111px; } }
+@media (max-width: 921px) { .pg-scenarios:empty { min-height: 1153px; } }
+@media (max-width: 917px) { .pg-files:empty { min-height: 474px; } }
+@media (max-width: 889px) { .pg-checks:empty { min-height: 226px; } }
+@media (max-width: 879px) { .pg-files:empty { min-height: 506px; } }
+@media (max-width: 861px) { .pg-scenarios:empty { min-height: 1090px; } .pg-checks:empty { min-height: 125px; } .pg-files:empty { min-height: 154px; } .pg-try:empty { min-height: 29px; } }
+@media (max-width: 853px) { .pg-story:empty { min-height: 190px; } }
+@media (max-width: 843px) { .pg-scenarios:empty { min-height: 1132px; } }
+@media (max-width: 829px) { .pg-scenarios:empty { min-height: 1174px; } }
+@media (max-width: 801px) { #arch:empty { min-height: 766px; } }
+@media (max-width: 771px) { .pg-try:empty { min-height: 67px; } }
+@media (max-width: 763px) { .pg-scenarios:empty { min-height: 1258px; } }
+@media (max-width: 745px) { #arch:empty { min-height: 791px; } }
+@media (max-width: 729px) { .pg-scenarios:empty { min-height: 1300px; } }
+@media (max-width: 721px) { .pg-scenarios:empty { min-height: 1258px; } .pg-story:empty { min-height: 178px; } .pg-files:empty { min-height: 149px; } #arch:empty { min-height: 1003px; } }
+@media (max-width: 717px) { .pg-scenarios:empty { min-height: 1300px; } }
+@media (max-width: 697px) { .pg-scenarios:empty { min-height: 1342px; } }
+@media (max-width: 693px) { .pg-scenarios:empty { min-height: 1384px; } }
+@media (max-width: 691px) { .pg-files:empty { min-height: 180px; } }
+@media (max-width: 683px) { #arch:empty { min-height: 1026px; } }
+@media (max-width: 631px) { #arch:empty { min-height: 1042px; } }
+@media (max-width: 619px) { .pg-scenarios:empty { min-height: 1426px; } }
+@media (max-width: 611px) { .pg-files:empty { min-height: 211px; } }
+@media (max-width: 597px) { .pg-scenarios:empty { min-height: 1468px; } }
+@media (max-width: 591px) { .pg-try:empty { min-height: 104px; } }
+@media (max-width: 569px) { .pg-scenarios:empty { min-height: 1510px; } }
+@media (max-width: 551px) { .pg-scenarios:empty { min-height: 1552px; } .pg-story:empty { min-height: 201px; } }
+@media (max-width: 537px) { .pg-scenarios:empty { min-height: 1594px; } }
+@media (max-width: 529px) { .pg-scenarios:empty { min-height: 1636px; } }
+@media (max-width: 527px) { .pg-scenarios:empty { min-height: 1678px; } }
+@media (max-width: 525px) { .pg-scenarios:empty { min-height: 1720px; } .pg-files:empty { min-height: 242px; } }
+@media (max-width: 521px) { #arch:empty { min-height: 1058px; } }
+@media (max-width: 515px) { #arch:empty { min-height: 1074px; } }
+@media (max-width: 509px) { .pg-scenarios:empty { min-height: 1762px; } }
+@media (max-width: 501px) { .pg-scenarios:empty { min-height: 1804px; } }
+@media (max-width: 483px) { .pg-scenarios:empty { min-height: 1888px; } }
+@media (max-width: 481px) { .pg-files:empty { min-height: 273px; } }
+@media (max-width: 479px) { .pg-scenarios:empty { min-height: 1930px; } }
+@media (max-width: 475px) { .pg-files:empty { min-height: 304px; } }
+@media (max-width: 471px) { .pg-scenarios:empty { min-height: 1972px; } }
+@media (max-width: 469px) { .pg-scenarios:empty { min-height: 2014px; } }
+@media (max-width: 467px) { .pg-scenarios:empty { min-height: 2056px; } }
+@media (max-width: 461px) { .pg-checks:empty { min-height: 145px; } }
+@media (max-width: 451px) { .pg-scenarios:empty { min-height: 2098px; } }
+@media (max-width: 443px) { .pg-story:empty { min-height: 225px; } }
+@media (max-width: 441px) { .pg-try:empty { min-height: 122px; } }
+@media (max-width: 437px) { .pg-checks:empty { min-height: 166px; } }
+@media (max-width: 435px) { .pg-scenarios:empty { min-height: 2140px; } }
+@media (max-width: 431px) { #arch:empty { min-height: 1091px; } }
+@media (max-width: 427px) { .pg-scenarios:empty { min-height: 2182px; } }
+@media (max-width: 423px) { #arch:empty { min-height: 1107px; } }
+@media (max-width: 415px) { #arch:empty { min-height: 1124px; } }
+@media (max-width: 413px) { .pg-scenarios:empty { min-height: 2224px; } #arch:empty { min-height: 1145px; } }
+@media (max-width: 411px) { .pg-scenarios:empty { min-height: 2266px; } }
+@media (max-width: 407px) { .pg-checks:empty { min-height: 186px; } }
+@media (max-width: 405px) { .pg-scenarios:empty { min-height: 2308px; } }
+@media (max-width: 403px) { .pg-checks:empty { min-height: 206px; } }
+@media (max-width: 397px) { .pg-scenarios:empty { min-height: 2350px; } }
+@media (max-width: 395px) { #arch:empty { min-height: 1178px; } }
+@media (max-width: 391px) { .pg-scenarios:empty { min-height: 2358px; } #arch:empty { min-height: 1195px; } }
+@media (max-width: 389px) { .pg-scenarios:empty { min-height: 2400px; } #arch:empty { min-height: 1211px; } }
+@media (max-width: 387px) { .pg-files:empty { min-height: 335px; } }
+@media (max-width: 385px) { .pg-story:empty { min-height: 248px; } #arch:empty { min-height: 1235px; } }
+@media (max-width: 383px) { .pg-files:empty { min-height: 397px; } }
+@media (max-width: 375px) { .pg-files:empty { min-height: 428px; } }
+@media (max-width: 369px) { .pg-files:empty { min-height: 459px; } }
+@media (max-width: 367px) { .pg-scenarios:empty { min-height: 2442px; } }
+@media (max-width: 361px) { #arch:empty { min-height: 1251px; } }
+@media (max-width: 720px) { #arch:empty { background-size: calc(100% - 32px) calc(100% - 32px); } }
+@media (max-width: 683px) { #pg-goal:empty { width: 100%; height: 60px; border-radius: 20px; } }
+@media (max-width: 374px) { #pg-goal:empty { height: 82px; } }
+#stage:not(:empty), #stats:not(:empty), #engage:not(:empty), #bento:not(:empty), #levels:not(:empty) { animation: nimbus-fade .2s ease-out both; }
+@keyframes nimbus-fade { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) {
+  .pg-scenarios:empty, .pg-story:empty, .playground:has(.pg-scenarios:empty) .pg-out:empty, .pg-checks:empty, .pg-files:empty, .pg-try:empty, #quiz-list:empty, #pg-goal:empty, .pg-stages:empty, #arch:empty { animation: none; }
+  #stage:not(:empty), #stats:not(:empty), #engage:not(:empty), #bento:not(:empty), #levels:not(:empty) { animation: none; }
+}

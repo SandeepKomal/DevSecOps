@@ -57,6 +57,7 @@ Run the site's checks with Node (no install needed):
 ```bash
 node tests/check_site_data.js && node tests/check_playground.js && node tests/check_xray.js && node tests/check_problems.js && node tests/fuzz_playground.js
 node scripts/build-problems.js   # after changing troubleshooting entries in site/data.js
+node scripts/build-scenario-index.js  # after adding or renaming a scenario, quiz question or X-ray example
 ```
 
 ## What's in this repository
@@ -165,6 +166,7 @@ Some workflows are conditional/manual because this is a security lab and may not
 | `site/` | The DevOps Nimbus DevSecOps learning site (static) |
 | `tests/` | Node tests and the fuzzer for the site |
 | `scripts/build-problems.js` | Builds `site/problems.html` |
+| `scripts/build-scenario-index.js` | Builds `site/scenario-index.js`, the scenario index the first screen reads |
 | `DevSecOps` | A Jenkins pipeline example (Maven, SonarQube, Trivy) |
 | `.gitleaks.toml`, `trivy-secret.yaml`, `.semgrepignore`, `.secretsallow` | Scanner allowlists for the site's practice data |
 

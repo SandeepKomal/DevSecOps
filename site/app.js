@@ -6,7 +6,34 @@
   const $ = (sel) => document.querySelector(sel);
   const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   const scrollToEl = (el) => el && el.scrollIntoView({ block: "start", behavior: still() ? "auto" : "smooth" });
-  const SCENARIOS = window.DSScenarios.SCENARIOS;
+  // The first screen needs only data.js, scenario-index.js (a small index of the
+  // playground's incidents), this file and engage.js. The rest loads in the
+  // background after the first paint, or at once when something needs it.
+  const LAZY = { quiz: ["quiz-bank.js"], xray: ["rules.js", "xray-explain.js"], play: ["rules.js", "repo.js", "sim.js", "shell.js", "scenarios.js", "playground.js"], arch: ["architecture.js"] };
+  const loading = {};
+  function loadScript(src) {
+    if (!loading[src]) {
+      loading[src] = new Promise((resolve, reject) => {
+        const el = document.createElement("script");
+        el.src = src;
+        el.async = false; // run in the order they were added
+        el.onload = resolve;
+        el.onerror = () => { delete loading[src]; el.remove(); reject(new Error("Could not load " + src)); };
+        document.body.append(el);
+      });
+    }
+    return loading[src];
+  }
+  const load = (srcs) => Promise.all(srcs.map(loadScript));
+  // What to draw once a feature's scripts have run (set further down).
+  const ready = {};
+  const needed = {};
+  const need = (what) => (needed[what] = needed[what] || load(LAZY[what]).then(() => { if (ready[what]) ready[what](); }, (e) => { delete needed[what]; throw e; }));
+  const warm = () => Promise.all(Object.keys(LAZY).map(need));
+  // Run something in the playground once it has loaded.
+  const withPg = (fn) => (window.DSPlayground ? fn(window.DSPlayground) : need("play").then(() => fn(window.DSPlayground)));
+
+  const SCENARIOS = window.TRACK_SCENARIOS;
   const titleOf = Object.fromEntries(SCENARIOS.map((s) => [s.id, s.title]));
 
   // h("tag.class", {attr: value}, ...children): DOM built from text nodes only.
@@ -58,13 +85,14 @@
       page.classList.add("tab-in");
     }
     current = tab;
+    if (LAZY[tab]) need(tab);
     for (const t of TABS) $("#tab-" + t).hidden = t !== tab;
     const fixTabs = [...document.querySelectorAll(".mode.fix a[data-tab]")].map((a) => a.dataset.tab);
     const mode = fixTabs.includes(tab) ? "fix" : "learn";
     document.documentElement.dataset.mode = mode;
     document.querySelectorAll(".sw").forEach((a) => (a.classList.contains(mode) ? a.setAttribute("aria-current", "true") : a.removeAttribute("aria-current")));
     document.querySelectorAll(".subnav a").forEach((a) => (a.dataset.tab === tab ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
-    if (want === "play" && sub && window.DSPlayground) window.DSPlayground.load(sub, true);
+    if (want === "play" && sub) { if (window.DSPlayground) window.DSPlayground.load(sub, true); else need("play").then(() => { if (location.hash === "#play/" + sub) window.DSPlayground.load(sub, true); }); }
     else if (want === "fix" && sub) { const i = Q.doctor.findIndex((d) => d.id === sub); if (i >= 0) renderDoctor(i, true); }
     else if (want && !TABS.includes(want) && want !== "play" && want !== "fix") scrollToEl(document.getElementById(want));
   }
@@ -109,7 +137,7 @@
     $("#bento").append(
       tile("#playground", "Playground", "A pipeline under attack.", `${SCENARIOS.length} scenarios: leaked keys, vulnerable dependencies, root containers, open buckets, unsigned images, live incidents.`, true),
       tile("#xray", "Pipeline X-ray", "Pipelines, audited.", "Paste a workflow, Dockerfile, Terraform or manifest; see every line and every gap.", true),
-      tile("#quiz", "Quiz", "Threats and controls.", `${Object.values(window.TRACK_QUIZ).flat().length} questions with the reasoning.`),
+      tile("#quiz", "Quiz", "Threats and controls.", `${window.TRACK_QUIZ_COUNT} questions with the reasoning.`),
       tile("#arch", "Secure SDLC", "Where each control sits.", "Plan to operate, shift left and shift right."),
       tile("#doctor", "Stuck on an error?", "Learn why it happens, then practise the fix.", `${Q.doctor.length} errors and findings, each with a scenario to break and fix.`));
     $("#pg-sub").textContent = `${SCENARIOS.length} real findings and incidents, the commands you would use at work. No install, no account.`;
@@ -162,6 +190,7 @@
   // --- quiz ------------------------------------------------------------------------
   const shuffle = (list) => { const a = [...list]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   function renderQuiz() {
+    if (!window.TRACK_QUIZ) { need("quiz").then(renderQuiz); return; }
     const mode = $("#quiz-level").value;
     const exam = mode === "exam";
     const items = exam ? shuffle(Q.levels.flatMap((l) => window.TRACK_QUIZ[l.id].map((x) => ({ ...x, level: l.id })))).slice(0, 15) : window.TRACK_QUIZ[mode].map((x) => ({ ...x, level: mode }));
@@ -213,6 +242,7 @@
     const err = $("#xray-error");
     const fail = (msg) => { err.textContent = msg; err.hidden = false; $("#xray-result").hidden = true; $("#xray-view").hidden = true; };
     if (!text.trim()) return fail("Paste a file first, or load an example.");
+    if (!window.DSExplain) { need("xray").then(explainPasted); return; }
     const res = window.DSExplain.explain(text);
     if (res.error) return fail(res.error);
     err.hidden = true;
@@ -300,7 +330,7 @@
     out.replaceChildren(...[...groups].flatMap(([group, rows]) => [h("h3.group", null, group), h("ul.cheats", null, rows.map(([cmd, what, where]) => h("li", null,
       h("div", null, h("code", null, cmd), h("span.muted", null, what)),
       h("div.cheat-actions", null,
-        where ? h("button.copy", { type: "button", title: where === "any" ? "Run it in the playground" : `Run it in the scenario "${titleOf[where]}"`, onclick: () => { go("path", true); window.DSPlayground.prefill(cmd, where); } }, "Try")
+        where ? h("button.copy", { type: "button", title: where === "any" ? "Run it in the playground" : `Run it in the scenario "${titleOf[where]}"`, onclick: () => { go("path", true); withPg((p) => p.prefill(cmd, where)); } }, "Try")
           : h("a.copy.lab", { href: Q.repo, title: "Needs your own machine, cluster or account" }, "Lab"),
         h("button.copy", { type: "button", onclick: (e) => copyText(cmd, e.currentTarget, "Copy") }, "Copy")))))]));
   }
@@ -343,7 +373,7 @@
     if (!pItems.length) pList.append(h("li.muted", null, "Nothing matches."));
     pInput.setAttribute("aria-activedescendant", pItems.length ? "pal-" + pActive : "");
   }
-  function openPalette() { if (palette.open) return; pInput.value = ""; pActive = 0; renderPalette(); palette.showModal(); pInput.focus(); }
+  function openPalette() { if (palette.open) return; warm(); pInput.value = ""; pActive = 0; renderPalette(); palette.showModal(); pInput.focus(); }
   function choose(i) { const a = pItems[i]; if (!a) return; palette.close(); a.run(); }
   pInput.addEventListener("input", () => { pActive = 0; renderPalette(); });
   pInput.addEventListener("keydown", (e) => {
@@ -360,12 +390,20 @@
   });
 
   // --- init -----------------------------------------------------------------------------------------
+  // The question counts arrive with the question bank.
+  const quizLabel = (lv) => `${lv.id} · ${lv.title}` + (window.TRACK_QUIZ ? ` (${window.TRACK_QUIZ[lv.id].length} questions)` : "");
   $("#quiz-level").append(h("option", { value: "exam" }, "Exam: 15 random questions from every level"),
-    ...Q.levels.map((lv) => h("option", { value: lv.id }, `${lv.id} · ${lv.title} (${window.TRACK_QUIZ[lv.id].length} questions)`)));
+    ...Q.levels.map((lv) => h("option", { value: lv.id }, quizLabel(lv))));
+  ready.quiz = () => { for (const lv of Q.levels) $(`#quiz-level option[value="${lv.id}"]`).textContent = quizLabel(lv); renderQuiz(); };
   $("#quiz-level").value = "00";
   $("#quiz-level").addEventListener("change", renderQuiz);
-  $("#xray-examples").append(...window.DSExplain.EXAMPLES.map((ex) => h("button", { type: "button", "aria-selected": "false",
-    onclick: (e) => { document.querySelectorAll("#xray-examples button").forEach((b) => b.setAttribute("aria-selected", String(b === e.currentTarget))); $("#xray-input").value = ex.text; explainPasted(); } }, `Example: ${ex.name}`)));
+  // The example names come with the scenario index; their text arrives with the X-ray.
+  $("#xray-examples").append(...window.TRACK_XRAY_EXAMPLES.map((name, i) => h("button", { type: "button", "aria-selected": "false",
+    onclick: (e) => {
+      const btn = e.currentTarget;
+      document.querySelectorAll("#xray-examples button").forEach((b) => b.setAttribute("aria-selected", String(b === btn)));
+      need("xray").then(() => { $("#xray-input").value = window.DSExplain.EXAMPLES[i].text; explainPasted(); });
+    } }, `Example: ${name}`)));
   $("#xray-go").addEventListener("click", explainPasted);
   $("#xray-clear").addEventListener("click", () => { $("#xray-input").value = ""; $("#xray-result").hidden = true; $("#xray-view").hidden = true; $("#xray-error").hidden = true; $("#xray-input").focus(); });
   $("#xray-input").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) explainPasted(); });
@@ -378,13 +416,18 @@
   $("#forget").addEventListener("click", forgetEverything);
   $("#cta-path").addEventListener("click", (e) => { e.preventDefault(); scrollToEl($("#levels-title")); });
 
-  window.DSUI = { h, rich, store, go, copyText, linkTo, titleOf };
-  signature();
-  renderHome();
+  window.DSUI = { h, rich, store, go, copyText, linkTo, titleOf, need };
   renderGuides();
-  renderQuiz();
   buildDoctorList();
   renderCheats();
-  // The path waits for engage.js, which loads last.
-  window.addEventListener("DOMContentLoaded", () => { renderPath(); route(); });
+  // The first screen in one pass, once engage.js has run too, then the heavy
+  // features in the background.
+  window.addEventListener("DOMContentLoaded", () => {
+    signature();
+    renderHome();
+    renderPath();
+    window.DQEngage.render();
+    route();
+    (window.requestIdleCallback || ((fn) => setTimeout(fn, 200)))(() => warm());
+  });
 })();
