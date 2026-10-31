@@ -653,4 +653,8 @@ for (const [cmd, , , where] of cheats) {
   else assert.ok(!runsIn("any", cmd), `cheat sheet: "${cmd}" runs in the playground; give it a Try`);
 }
 
+// The first screen reads the scenario index, so it must match the scenarios.
+const index = require(path.resolve(__dirname, "../scripts/build-scenario-index.js"));
+assert.strictEqual(require("fs").readFileSync(index.file, "utf8"), index.render(), "site/scenario-index.js is out of date: run node scripts/build-scenario-index.js");
+
 console.log(`playground ok: ${SCENARIOS.length} scenarios start broken, resist wrong moves and are solved by their fix; ${cheats.length} cheat sheet commands checked`);
