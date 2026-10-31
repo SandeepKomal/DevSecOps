@@ -18,12 +18,13 @@ const code = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>");
 function render() {
   const groups = Q.doctorGroups.map(([g, ids]) => `  <h2 id="${esc(g.toLowerCase().replace(/\W+/g, "-"))}">${esc(g)}</h2>\n` + ids.map((id) => {
     const d = Q.doctor.find((x) => x.id === id);
+    const lv = Q.levels.find((l) => l.id === d.level);
     return `  <section id="${esc(d.id)}">
     <h3>${esc(d.title)}</h3>
     <p class="tag">${esc(d.tool)}</p>
     <h4>The error</h4>
     <pre><code>${esc(d.error)}</code></pre>
-    <h4>What it means</h4>
+    <h4>Why it happens</h4>
     <p>${esc(d.cause)}</p>
     <h4>Confirm it</h4>
     <pre><code>${esc(d.confirm.join("\n"))}</code></pre>
@@ -33,7 +34,7 @@ ${d.fix.map((f) => `      <li>${code(f)}</li>`).join("\n")}
     </ol>
     <h4>Prevent it</h4>
     <p>${esc(d.prevent)}</p>
-    <p>Practise it: ${d.scenarios.map((s) => `<a href="index.html#play/${esc(s)}">${esc(titles[s])}</a>`).join(", ")} · <a href="index.html#fix/${esc(d.id)}">Open in the site</a></p>
+    <p><strong>Now learn it:</strong> break and fix it yourself in ${d.scenarios.map((s) => `<a href="index.html#play/${esc(s)}">${esc(titles[s])}</a>`).join(", ")}, then take <a href="index.html#level-${esc(lv.id)}">Level ${esc(lv.id)} · ${esc(lv.title)}</a>. <a href="index.html#fix/${esc(d.id)}">Open in the site</a></p>
   </section>`;
   }).join("\n")).join("\n");
   return `<!doctype html>
@@ -56,7 +57,7 @@ ${d.fix.map((f) => `      <li>${code(f)}</li>`).join("\n")}
 <main class="wrap problems">
   <p><a href="index.html">DevSecOps Quest</a> · <a href="index.html#doctor">Searchable version</a></p>
   <h1>DevSecOps problems and fixes</h1>
-  <p class="lede">${Q.doctor.length} errors and scanner findings: the exact text, what it means, how to confirm it, how to fix it and how to stop it coming back. Practice examples use invented IDs such as PRACTICE-2026-0001.</p>
+  <p class="lede">${Q.doctor.length} errors and scanner findings: the exact text, why it happens, how to confirm it, how to fix it and how to stop it coming back. Then learn it for good: break and fix each one yourself in the <a href="index.html#playground">browser playground</a>. Practice examples use invented IDs such as PRACTICE-2026-0001.</p>
   <nav aria-label="Groups"><ul>
 ${Q.doctorGroups.map(([g, ids]) => `    <li><a href="#${esc(g.toLowerCase().replace(/\W+/g, "-"))}">${esc(g)}</a> (${ids.length})</li>`).join("\n")}
   </ul></nav>
