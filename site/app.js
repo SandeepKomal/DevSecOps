@@ -105,9 +105,9 @@
     $("#bento").append(
       tile("#playground", "Playground", "A pipeline under attack.", `${SCENARIOS.length} scenarios: leaked keys, vulnerable dependencies, root containers, open buckets, unsigned images, live incidents.`, true),
       tile("#xray", "Pipeline X-ray", "Pipelines, audited.", "Paste a workflow, Dockerfile, Terraform or manifest; see every line and every gap.", true),
-      tile("#doctor", "Troubleshoot", "Finding to fix.", `${Q.doctor.length} errors and findings, each with cause, confirm, fix and prevent.`),
       tile("#quiz", "Quiz", "Threats and controls.", `${Object.values(window.QUEST_QUIZ).flat().length} questions with the reasoning.`),
-      tile("#arch", "Secure SDLC", "Where each control sits.", "Plan to operate, shift left and shift right."));
+      tile("#arch", "Secure SDLC", "Where each control sits.", "Plan to operate, shift left and shift right."),
+      tile("#doctor", "Stuck on an error?", "Learn why it happens, then practise the fix.", `${Q.doctor.length} errors and findings, each with a scenario to break and fix.`));
     $("#pg-sub").textContent = `${SCENARIOS.length} real findings and incidents, the commands you would use at work. No install, no account.`;
     $("#standards").append(...Q.standards.map(([name, url, text]) => h("a", { href: url, rel: "noopener" }, h("strong", null, name), h("span", null, text))));
   }
@@ -264,16 +264,21 @@
   function renderDoctor(i, fromRoute) {
     const d = Q.doctor[i];
     document.querySelectorAll("#doctor-list button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.id === d.id)));
+    const lv = Q.levels.find((l) => l.id === d.level);
     const copy = h("button.copy", { type: "button", onclick: (e) => copyText(linkTo("fix/" + d.id), e.currentTarget, "Copy link") }, "Copy link");
     $("#doctor-out").replaceChildren(h("article.card.fix", { id: "fix-" + d.id },
       h("div.fix-head", null, h("div", null, h("p.tag", null, `${d.group} · ${d.tool}`), h("h3", null, d.title)), copy),
       h("h4", null, "The error"), h("pre", null, h("code", null, d.error)),
-      h("h4", null, "What it means"), h("p", null, d.cause),
+      h("h4", null, "Why it happens"), h("p", null, d.cause),
       h("h4", null, "Confirm it"), h("pre", null, h("code", null, d.confirm.join("\n"))),
       h("h4", null, "Fix it"), h("ol", null, d.fix.map((f) => h("li", null, ...rich(f)))),
       h("h4", null, "Prevent it"), h("p", null, d.prevent),
-      h("div.fix-actions", null, h("span.muted.small", null, "Practise it:"), d.scenarios.map((id) => h("a.chip", { href: "#play/" + id }, titleOf[id])),
-        h("a.chip", { href: "#level-" + d.level, onclick: (e) => { e.preventDefault(); go("path", true); setTimeout(() => { const el = document.getElementById("level-" + d.level); if (el) { el.open = true; scrollToEl(el); } }); } }, `Level ${d.level}`))));
+      // Fixing is the way in; the point is to learn it, so every answer ends in practice.
+      h("div.learn-it", null,
+        h("h4", null, "Now learn it"),
+        h("p", null, "Break this yourself on a simulated repository and fix it. Doing it once is what makes you recognise it next time."),
+        h("div.fix-actions", null, h("span.muted.small", null, "Practise:"), d.scenarios.map((id) => h("a.chip", { href: "#play/" + id }, titleOf[id]))),
+        h("p.note", null, "Then the level that teaches it: ", h("a", { href: "#level-" + lv.id, onclick: (e) => { e.preventDefault(); go("path", true); setTimeout(() => { const el = document.getElementById("level-" + lv.id); el.open = true; scrollToEl(el); }); } }, `Level ${lv.id} · ${lv.title}`)))));
     if (!fromRoute || location.hash === "#fix/" + d.id) scrollToEl($("#doctor-out"));
   }
 
@@ -320,7 +325,7 @@
   let pItems = [];
   let pActive = 0;
   const ACTIONS = [
-    ...["path", "quiz", "xray", "doctor", "cheats", "arch"].map((t, i) => ({ label: ["Path and playground", "Quiz", "Pipeline X-ray", "Troubleshoot", "Cheat sheet", "Secure SDLC"][i], kind: "Section", run: () => go(t) })),
+    ...["path", "quiz", "xray", "doctor", "cheats", "arch"].map((t, i) => ({ label: ["Path and playground", "Quiz", "Pipeline X-ray", "Fix: troubleshoot an error", "Cheat sheet", "Secure SDLC"][i], kind: "Section", run: () => go(t) })),
     ...SCENARIOS.map((s) => ({ label: `Playground: ${s.title}`, hint: s.group, kind: "Scenario", run: () => go("play/" + s.id) })),
     ...Q.doctor.map((d) => ({ label: `Troubleshoot: ${d.title}`, hint: d.tool + " " + d.error, kind: "Problem", run: () => go("fix/" + d.id) })),
     ...Q.levels.map((lv) => ({ label: `Level ${lv.id} · ${lv.title}`, hint: lv.topic, kind: "Level", run: () => { go("path", true); const el = document.getElementById("level-" + lv.id); el.open = true; scrollToEl(el); } }))
@@ -361,6 +366,10 @@
   $("#xray-clear").addEventListener("click", () => { $("#xray-input").value = ""; $("#xray-result").hidden = true; $("#xray-view").hidden = true; $("#xray-error").hidden = true; $("#xray-input").focus(); });
   $("#xray-input").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) explainPasted(); });
   $("#doctor-q").addEventListener("input", filterDoctor);
+  // The home page's "Something broken?" box hands the pasted finding to Troubleshoot.
+  const doorGo = () => { $("#doctor-q").value = $("#door-q").value; filterDoctor(); go("doctor"); setTimeout(() => $("#doctor-q").focus()); };
+  $("#door-go").addEventListener("click", doorGo);
+  $("#door-q").addEventListener("keydown", (e) => { if (e.key === "Enter") doorGo(); });
   $("#cheat-q").addEventListener("input", renderCheats);
   $("#forget").addEventListener("click", forgetEverything);
   $("#cta-path").addEventListener("click", (e) => { e.preventDefault(); scrollToEl($("#levels-title")); });

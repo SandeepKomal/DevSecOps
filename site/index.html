@@ -23,12 +23,18 @@
         DevSecOps Quest
       </a>
       <nav aria-label="Sections">
-        <a href="#path" data-tab="path">Path</a>
-        <a href="#quiz" data-tab="quiz">Quiz</a>
-        <a href="#xray" data-tab="xray">Pipeline X-ray</a>
-        <a href="#doctor" data-tab="doctor">Troubleshoot</a>
-        <a href="#cheats" data-tab="cheats">Cheat sheet</a>
-        <a href="#arch" data-tab="arch">Secure SDLC</a>
+        <div class="mode learn" role="group" aria-label="Learn">
+          <span class="mode-k">Learn</span>
+          <a href="#path" data-tab="path">Path</a>
+          <a href="#quiz" data-tab="quiz">Quiz</a>
+          <a href="#xray" data-tab="xray">Pipeline X-ray</a>
+          <a href="#arch" data-tab="arch">Secure SDLC</a>
+        </div>
+        <div class="mode fix" role="group" aria-label="Fix">
+          <span class="mode-k">Fix</span>
+          <a href="#doctor" data-tab="doctor">Troubleshoot</a>
+          <a href="#cheats" data-tab="cheats">Cheat sheet</a>
+        </div>
       </nav>
       <button type="button" class="kbd-btn" id="palette-open" aria-label="Search the site (Ctrl+K)"><span>Search</span><kbd id="palette-key">Ctrl K</kbd></button>
       <a class="gh" id="gh-link" href="https://github.com/SandeepKomal/DevSecOps">GitHub</a>
@@ -41,9 +47,25 @@
         <p class="eyebrow">DevSecOps Quest</p>
         <h1>Security as part<br>of the build.</h1>
         <p class="sub">Secrets, dependencies, images, infrastructure and supply chain, scanned and fixed in the pipeline. Practise on a simulated repository that breaks the way real ones do.</p>
-        <div class="ctas">
-          <a class="pill primary" href="#levels-title" id="cta-path">Start the path</a>
-          <a class="link-arrow" href="#play/aws-key" id="cta-play">Try a scenario</a>
+        <div class="doors">
+          <div class="door learn">
+            <p class="door-k">Learning DevSecOps?</p>
+            <h2>Start from zero, step by step.</h2>
+            <p>Levels in order, each with a hands-on finding to fix on a simulated repository.</p>
+            <div class="ctas">
+              <a class="pill primary" href="#levels-title" id="cta-path">Start the path</a>
+              <a class="link-arrow" href="#play/aws-key" id="cta-play">Try a scenario</a>
+            </div>
+          </div>
+          <div class="door fix">
+            <p class="door-k">Something broken right now?</p>
+            <h2>Paste the finding, get the fix.</h2>
+            <p>The cause, the commands to confirm it and the fix, for common scanner findings and pipeline errors.</p>
+            <div class="door-search">
+              <input id="door-q" type="search" placeholder="Paste the finding here" aria-label="Paste a finding or an error" autocomplete="off" spellcheck="false">
+              <button type="button" class="pill" id="door-go">Find the fix</button>
+            </div>
+          </div>
         </div>
         <div class="stage" id="stage" aria-label="Where each problem is caught"></div>
         <div class="stats" id="stats"></div>
@@ -144,8 +166,9 @@
     </section>
 
     <section id="tab-doctor" class="tab" hidden>
-      <h2>Troubleshoot</h2>
-      <p class="lede">From a scanner finding or an error message to the fix. Paste the error text, or type a tool or symptom. Each entry has its own link.</p>
+      <p class="mode-banner"><strong>Fix mode.</strong> For when something is broken right now. Learning DevSecOps instead? <a href="#path">Start the path</a>.</p>
+      <h2>Stuck on a finding?</h2>
+      <p class="lede">Paste the scanner finding or error text, or type a tool or symptom. Each answer explains why it happens, how to confirm it and how to fix and prevent it, then gives you a safe scenario to break and fix it yourself, so you recognise it next time. Each entry has its own link.</p>
       <div class="guide-slot" data-guide="doctor"></div>
       <label class="field">Search errors, findings and tools
         <input id="doctor-q" type="search" placeholder="Paste an error: GH013, TOOMANYREQUESTS, runAsNonRoot, CKV_AWS_24..." autocomplete="off">
